@@ -4,8 +4,10 @@ import {
   useParams,
 } from "react-router";
 import ProjectHeader from "../components/ProjectHeader";
+import ProjectViewToggle from "../components/ProjectViewToggle";
 import TaskColumn from "../components/TaskColumn";
 import TaskForm from "../components/TaskForm";
+import TaskList from "../components/TaskList";
 import { PROJECT_PERMISSIONS } from "../constants/access";
 import {
   apiRequest,
@@ -17,8 +19,11 @@ function ProjectPage() {
   const navigate = useNavigate();
 
   const [project, setProject] = useState(null);
-  const [tasks, setTasks] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+const [tasks, setTasks] = useState([]);
+const [activeView, setActiveView] =
+  useState("kanban");
+const [isLoading, setIsLoading] = useState(true);
+
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
