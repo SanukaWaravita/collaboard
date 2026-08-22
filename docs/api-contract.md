@@ -24,7 +24,7 @@ Protected endpoints require a JWT in the request header:
 Authorization: Bearer <token>
 ```
 
-Authentication will be implemented after the initial Board and Task CRUD endpoints.
+Registration and login are implemented during Milestone 2. Board endpoints require JWT authentication; Task-route protection is completed by the next assignment.
 
 ## 4. Standard error response
 
@@ -162,7 +162,7 @@ Successful response: `200 OK`
 
 ## 9. Board endpoints
 
-All board endpoints will eventually require authentication.
+All board endpoints require authentication.
 
 |Method|Endpoint|Purpose|
 |---|---|---|
