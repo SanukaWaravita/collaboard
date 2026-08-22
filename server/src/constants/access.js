@@ -20,7 +20,9 @@ export const INVITATION_STATUS = Object.freeze({
   PENDING: "PENDING",
   ACCEPTED: "ACCEPTED",
   DECLINED: "DECLINED",
+  CANCELLED: "CANCELLED",
 });
+
 
 export const PROJECT_PERMISSIONS = Object.freeze({
   READ_PROJECT: "READ_PROJECT",
@@ -30,5 +32,10 @@ export const PROJECT_PERMISSIONS = Object.freeze({
   CREATE_TASK: "CREATE_TASK",
   UPDATE_TASK: "UPDATE_TASK",
   DELETE_TASK: "DELETE_TASK",
+});
+
+export const MEMBER_TYPES = Object.freeze({
+  INTERNAL: "INTERNAL",
+  GUEST: "GUEST",
 });
 
