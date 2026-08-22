@@ -86,7 +86,14 @@ function ProjectPage() {
     navigate,
     reloadKey,
   ]);
-
+  const canManageMembers =
+  project?.permissions.includes(
+    PROJECT_PERMISSIONS.MANAGE_MEMBERS,
+  ) ?? false;
+  const canManageMembers =
+  project?.permissions.includes(
+    PROJECT_PERMISSIONS.MANAGE_MEMBERS,
+  ) ?? false;
   const canCreateTask =
     project?.permissions.includes(
       PROJECT_PERMISSIONS.CREATE_TASK,
@@ -300,12 +307,15 @@ function ProjectPage() {
   return (
     <main className="board-page">
       <ProjectHeader
-        project={project}
-        taskCount={tasks.length}
-        backTo={`/workspaces/${workspaceId}/projects`}
-        onAddTask={openCreateTaskForm}
-        canAddTask={canCreateTask}
-      />
+  project={project}
+  taskCount={tasks.length}
+  backTo={`/workspaces/${workspaceId}/projects`}
+  manageAccessTo={`/workspaces/${workspaceId}/projects/${projectId}/access`}
+  onAddTask={openCreateTaskForm}
+  canAddTask={canCreateTask}
+  canManageMembers={canManageMembers}
+/>
+
 
       {taskActionError && (
         <p className="board-action-error" role="alert">
