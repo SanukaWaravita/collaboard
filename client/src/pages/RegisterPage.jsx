@@ -40,7 +40,9 @@ function RegisterPage() {
       });
 
       saveSession(session);
-      navigate("/boards");
+      navigate("/workspaces");
+
+
     } catch (requestError) {
       setError(requestError.message);
     } finally {

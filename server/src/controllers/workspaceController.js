@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { store } from "../data/inMemoryStore.js";
 import {
+  INVITATION_STATUS,
+  MEMBER_TYPES,
   WORKSPACE_PERMISSIONS,
   WORKSPACE_ROLES,
 } from "../constants/access.js";
+
+
 import {
   getWorkspaceAccess,
   hasWorkspacePermission,
@@ -38,6 +42,109 @@ function presentWorkspace(workspace, userId) {
     permissions: access?.permissions ?? [],
   };
 }
+export function getWorkspaceGuests(
+  request,
+  response,
+) {
+  const workspace = store.workspaces.find(
+    (item) =>
+      item.id === request.params.workspaceId,
+  );
+
+  if (!workspace) {
+    return response.status(404).json({
+      message: "Workspace not found",
+    });
+  }
+
+  if (
+    !hasWorkspacePermission(
+      workspace,
+      request.user.id,
+      WORKSPACE_PERMISSIONS.MANAGE_MEMBERS,
+    )
+  ) {
+    return response.status(403).json({
+      message:
+        "You cannot manage guests in this workspace",
+    });
+  }
+
+  const guests = store.workspaceMembers
+    .filter(
+      (membership) =>
+        membership.workspaceId === workspace.id &&
+        membership.role === WORKSPACE_ROLES.GUEST,
+    )
+    .map((membership) => {
+      const user = store.users.find(
+        (item) => item.id === membership.userId,
+      );
+
+      if (!user) {
+        return null;
+      }
+
+      const projects = store.projectMembers
+        .filter(
+          (projectMembership) =>
+            projectMembership.userId === user.id,
+        )
+        .map((projectMembership) => {
+          const project = store.projects.find(
+            (item) =>
+              item.id ===
+                projectMembership.projectId &&
+              item.workspaceId === workspace.id,
+          );
+
+          if (!project) {
+            return null;
+          }
+
+          return {
+            id: project.id,
+            projectKey: project.projectKey,
+            name: project.name,
+            role: projectMembership.role,
+          };
+        })
+        .filter(Boolean);
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        joinedAt: membership.joinedAt,
+        projects,
+      };
+    })
+    .filter(Boolean);
+
+  const pendingGuestInvitations =
+    store.projectInvitations
+      .filter(
+        (invitation) =>
+          invitation.workspaceId === workspace.id &&
+          invitation.memberType ===
+            MEMBER_TYPES.GUEST &&
+          invitation.status ===
+            INVITATION_STATUS.PENDING,
+      )
+      .map((invitation) => ({
+        id: invitation.id,
+        email: invitation.email,
+        projectId: invitation.projectId,
+        role: invitation.role,
+        createdAt: invitation.createdAt,
+      }));
+
+  return response.status(200).json({
+    guests,
+    pendingGuestInvitations,
+  });
+}
+
 
 export function getWorkspaces(request, response) {
   const workspaceIds = new Set(
