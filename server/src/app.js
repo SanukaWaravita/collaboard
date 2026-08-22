@@ -29,13 +29,6 @@ app.use(
   projectRoutes,
 );
 
-// Temporary compatibility until the React client is renamed.
-app.use(
-  "/api/boards",
-  authenticateUser,
-  projectRoutes,
-);
-
 app.use(
   "/api/invitations",
   authenticateUser,
