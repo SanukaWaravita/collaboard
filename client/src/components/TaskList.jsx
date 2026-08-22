@@ -4,7 +4,14 @@ const STATUS_LABELS = {
   done: "Done",
 };
 
-function TaskList({ tasks }) {
+function TaskList({
+  tasks,
+  onEditTask,
+  onDeleteTask,
+  canEditTasks = false,
+  canDeleteTasks = false,
+  deletingTaskId = null,
+}) {
   if (tasks.length === 0) {
     return (
       <section className="task-list-empty">
@@ -37,33 +44,87 @@ function TaskList({ tasks }) {
               <th scope="col">Task</th>
               <th scope="col">Description</th>
               <th scope="col">Status</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
 
           <tbody>
-            {tasks.map((task) => (
-              <tr key={task.id}>
-                <td className="task-list__title">
-                  {task.title}
-                </td>
+            {tasks.map((task) => {
+              const isDeleting =
+                deletingTaskId === task.id;
 
-                <td className="task-list__description">
-                  {task.description || "No description"}
-                </td>
+              return (
+                <tr key={task.id}>
+                  <td className="task-list__title">
+                    {task.title}
+                  </td>
 
-                <td>
-                  <span
-                    className={
-                      `task-status ` +
-                      `task-status--${task.status}`
-                    }
-                  >
-                    {STATUS_LABELS[task.status] ??
-                      task.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
+                  <td className="task-list__description">
+                    {task.description || "No description"}
+                  </td>
+
+                  <td>
+                    <span
+                      className={
+                        `task-status ` +
+                        `task-status--${task.status}`
+                      }
+                    >
+                      {STATUS_LABELS[task.status] ??
+                        task.status}
+                    </span>
+                  </td>
+
+                  <td>
+                    {(canEditTasks ||
+                      canDeleteTasks) && (
+                      <div className="task-list__actions">
+                        {canEditTasks && (
+                          <button
+                            type="button"
+                            className="button button--secondary"
+                            onClick={() =>
+                              onEditTask(task)
+                            }
+                            aria-label={
+                              `Edit ${task.title}`
+                            }
+                            disabled={isDeleting}
+                          >
+                            Edit
+                          </button>
+                        )}
+
+                        {canDeleteTasks && (
+                          <button
+                            type="button"
+                            className="button button--danger"
+                            onClick={() =>
+                              onDeleteTask(task)
+                            }
+                            aria-label={
+                              `Delete ${task.title}`
+                            }
+                            disabled={isDeleting}
+                          >
+                            {isDeleting
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {!canEditTasks &&
+                      !canDeleteTasks && (
+                        <span className="task-list__read-only">
+                          Read only
+                        </span>
+                      )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
