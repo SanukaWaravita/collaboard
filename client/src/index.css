@@ -1086,6 +1086,39 @@ select:focus-visible {
   min-width: 760px;
   border-collapse: collapse;
 }
+.task-list__table th,
+.task-list__table td {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.task-list__table th {
+  color: var(--text-muted);
+  background: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.task-list__table tbody tr {
+  transition: background 150ms ease;
+}
+
+.task-list__table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.task-list__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.task-list__table th:last-child,
+.task-list__table td:last-child {
+  text-align: right;
+}
 
 
 
