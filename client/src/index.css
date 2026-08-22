@@ -1119,6 +1119,64 @@ select:focus-visible {
 .task-list__table td:last-child {
   text-align: right;
 }
+.task-list__title {
+  width: 24%;
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.task-list__description {
+  width: 40%;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.task-list__table td .task-status {
+  display: inline-flex;
+  white-space: nowrap;
+}
+
+.task-list__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.task-list__actions .button {
+  padding: 7px 10px;
+  font-size: 0.78rem;
+}
+
+.task-list__read-only {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.task-list-empty {
+  padding: 56px 24px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.task-list-empty h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.task-list-empty p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
 
 
 
