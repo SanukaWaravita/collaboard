@@ -1042,6 +1042,50 @@ select:focus-visible {
   color: #ffffff;
   background: var(--primary-dark);
 }
+.task-list {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 4px 12px rgb(23 32 51 / 5%);
+}
+
+.task-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.task-list__header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.task-list__count {
+  display: grid;
+  min-width: 28px;
+  min-height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.task-list__table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.task-list__table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
 
 
 
