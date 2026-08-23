@@ -13,7 +13,17 @@ import {
   transferProjectOwnership,
   updateProjectMember,
 } from "../controllers/projectMemberController.js";
-
+import {
+  createWorkflowStatus,
+  deleteWorkflowStatus,
+  getWorkflowStatuses,
+  updateWorkflowStatus,
+} from "../controllers/workflowStatusController.js";
+import {
+  cancelProjectInvitation,
+  getProjectInvitations,
+  inviteProjectMember,
+} from "../controllers/invitationController.js";
 
 const router = Router();
 
@@ -21,7 +31,8 @@ router
   .route("/")
   .get(getProjects)
   .post(createProject);
-router.get(
+
+  router.get(
   "/:projectId/members",
   getProjectMembers,
 );
@@ -42,12 +53,11 @@ router.post(
 );
 
 
-router.post("/:projectId/tasks", createTask);
 
 router
-  .route("/:projectId/invitations")
-  .get(getProjectInvitations)
-  .post(inviteProjectMember);
+.route("/:projectId/invitations")
+.get(getProjectInvitations)
+.post(inviteProjectMember);
 
 router.delete(
   "/:projectId/invitations/:invitationId",
@@ -55,16 +65,25 @@ router.delete(
 );
 
 router
+  .route("/:projectId/statuses")
+  .get(getWorkflowStatuses)
+  .post(createWorkflowStatus);
+
+router
+  .route("/:projectId/statuses/:statusId")
+  .patch(updateWorkflowStatus)
+  .delete(deleteWorkflowStatus);
+
+router
   .route("/:projectId")
   .get(getProject)
   .patch(updateProject)
   .delete(deleteProject);
 
+router.post("/:projectId/tasks", createTask);
+
+
 export default router;
 
-import {
-  cancelProjectInvitation,
-  getProjectInvitations,
-  inviteProjectMember,
-} from "../controllers/invitationController.js";
+
 
