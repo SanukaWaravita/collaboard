@@ -1,144 +1,149 @@
-import { useState } from "react";
-
-function TaskForm({
-  initialTask = null,
-  onSubmit,
-  onCancel,
-  isSubmitting = false,
-  error = "",
+function TaskList({
+  tasks,
+  workflowStatuses = [],
+  onEditTask,
+  onDeleteTask,
+  canEditTasks = false,
+  canDeleteTasks = false,
+  deletingTaskId = null,
 }) {
-  const [title, setTitle] = useState(
-    initialTask?.title ?? "",
-  );
-  const [description, setDescription] = useState(
-    initialTask?.description ?? "",
-  );
-  const [status, setStatus] = useState(
-    initialTask?.status ?? "todo",
-  );
-
-  const isEditing = Boolean(initialTask);
-
-  function handleSubmit(event) {
-    event.preventDefault();
-
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle || isSubmitting) {
-      return;
-    }
-
-    onSubmit({
-      title: trimmedTitle,
-      description: description.trim(),
+  const statusesById = new Map(
+    workflowStatuses.map((status) => [
+      status.id,
       status,
-    });
+    ]),
+  );
+
+  if (tasks.length === 0) {
+    return (
+      <section className="task-list-empty">
+        <h2>No tasks yet</h2>
+
+        <p>
+          Tasks created in this project will appear here.
+        </p>
+      </section>
+    );
   }
 
   return (
-    <div className="modal-backdrop">
-      <form
-        className="task-form"
-        onSubmit={handleSubmit}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="task-form-title"
-      >
-        <header className="task-form__header">
-          <div>
-            <p className="task-form__eyebrow">
-              {isEditing ? "Edit task" : "New task"}
-            </p>
+    <section
+      className="task-list"
+      aria-labelledby="task-list-title"
+    >
+      <header className="task-list__header">
+        <h2 id="task-list-title">All Tasks</h2>
 
-            <h2 id="task-form-title">
-              {isEditing ? "Update task" : "Create a task"}
-            </h2>
-          </div>
+        <span className="task-list__count">
+          {tasks.length}
+        </span>
+      </header>
 
-          <button
-            type="button"
-            className="task-form__close"
-            onClick={onCancel}
-            aria-label="Close task form"
-            disabled={isSubmitting}
-          >
-            ×
-          </button>
-        </header>
+      <div className="task-list__table-wrapper">
+        <table className="task-list__table">
+          <thead>
+            <tr>
+              <th scope="col">Task</th>
+              <th scope="col">Description</th>
+              <th scope="col">Status</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
 
-        <div className="task-form__field">
-          <label htmlFor="task-title">Title</label>
-          <input
-            id="task-title"
-            type="text"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Enter a task title"
-            required
-            autoFocus
-            disabled={isSubmitting}
-          />
-        </div>
+          <tbody>
+            {tasks.map((task) => {
+              const isDeleting =
+                deletingTaskId === task.id;
 
-        <div className="task-form__field">
-          <label htmlFor="task-description">Description</label>
-          <textarea
-            id="task-description"
-            value={description}
-            onChange={(event) =>
-              setDescription(event.target.value)
-            }
-            placeholder="Describe the task"
-            rows="4"
-            disabled={isSubmitting}
-          />
-        </div>
+              const workflowStatus =
+                statusesById.get(task.status);
 
-        <div className="task-form__field">
-          <label htmlFor="task-status">Status</label>
-          <select
-            id="task-status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-            disabled={isSubmitting}
-          >
-            <option value="todo">To Do</option>
-            <option value="doing">Doing</option>
-            <option value="done">Done</option>
-          </select>
-        </div>
+              const statusName =
+                workflowStatus?.name ??
+                "Unknown status";
 
-        {error && (
-          <p className="auth-form__error" role="alert">
-            {error}
-          </p>
-        )}
+              const statusColor =
+                workflowStatus?.color ??
+                "#64748b";
 
-        <div className="task-form__actions">
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={onCancel}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </button>
+              return (
+                <tr key={task.id}>
+                  <td className="task-list__title">
+                    {task.title}
+                  </td>
 
-          <button
-            type="submit"
-            className="button button--primary"
-            disabled={isSubmitting}
-          >
-            {isSubmitting
-              ? "Saving..."
-              : isEditing
-                ? "Save Changes"
-                : "Create Task"}
-          </button>
-        </div>
-      </form>
-    </div>
+                  <td className="task-list__description">
+                    {task.description ||
+                      "No description"}
+                  </td>
+
+                  <td>
+                    <span
+                      className="task-status"
+                      style={{
+                        "--status-color":
+                          statusColor,
+                      }}
+                    >
+                      {statusName}
+                    </span>
+                  </td>
+
+                  <td>
+                    {(canEditTasks ||
+                      canDeleteTasks) && (
+                      <div className="task-list__actions">
+                        {canEditTasks && (
+                          <button
+                            type="button"
+                            className="button button--secondary"
+                            onClick={() =>
+                              onEditTask(task)
+                            }
+                            aria-label={
+                              `Edit ${task.title}`
+                            }
+                            disabled={isDeleting}
+                          >
+                            Edit
+                          </button>
+                        )}
+
+                        {canDeleteTasks && (
+                          <button
+                            type="button"
+                            className="button button--danger"
+                            onClick={() =>
+                              onDeleteTask(task)
+                            }
+                            aria-label={
+                              `Delete ${task.title}`
+                            }
+                            disabled={isDeleting}
+                          >
+                            {isDeleting
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {!canEditTasks &&
+                      !canDeleteTasks && (
+                        <span className="task-list__read-only">
+                          Read only
+                        </span>
+                      )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
-export default TaskForm;
+export default TaskList;

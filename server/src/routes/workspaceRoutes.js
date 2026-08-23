@@ -7,8 +7,6 @@ import {
   getWorkspaces,
   updateWorkspace,
 } from "../controllers/workspaceController.js";
-
-
 import {
   createProject,
   getProjects,
@@ -38,4 +36,3 @@ router
   .delete(deleteWorkspace);
 
 export default router;
-
