@@ -1,57 +1,132 @@
-import TaskCard from "./TaskCard";
+import {
+  getDueDateLabel,
+  getDueDateState,
+} from "../utils/taskDueDate";
 
-function TaskColumn({
+function TaskCard({
+  task,
   workflowStatus,
-  tasks,
-  onEditTask,
-  onDeleteTask,
-  canEditTasks = false,
-  canDeleteTasks = false,
-  deletingTaskId,
+  projectMembers = [],
+  onEdit,
+  onDelete,
+  canEdit = false,
+  canDelete = false,
+  isDeleting = false,
 }) {
-  const columnTasks = tasks.filter(
-    (task) => task.status === workflowStatus.id,
+  const assignee = task.assigneeId
+  ? projectMembers.find(
+      (member) =>
+        member.userId === task.assigneeId,
+    )
+  : null;
+
+const assigneeName = task.assigneeId
+  ? assignee?.name ?? "Unknown assignee"
+  : "Unassigned";
+
+const assigneeInitial = assignee?.name
+  ?.trim()
+  .charAt(0)
+  .toUpperCase() ?? "—";
+
+  const statusName =
+    workflowStatus?.name ?? "Unknown status";
+
+  const statusColor =
+    workflowStatus?.color ?? "#64748b";
+
+  const dueDateState = getDueDateState(
+    task.dueDate,
+    workflowStatus?.isCompleted ?? false,
+  );
+
+  const dueDateLabel = getDueDateLabel(
+    task.dueDate,
+    workflowStatus?.isCompleted ?? false,
   );
 
   return (
-    <section
-      className="task-column"
-      style={{
-        "--status-color": workflowStatus.color,
-      }}
-    >
-      <header className="task-column__header">
-        <h2>{workflowStatus.name}</h2>
+    <article className="task-card">
+      <div className="task-card__header">
+        <h3>{task.title}</h3>
 
-        <span className="task-column__count">
-          {columnTasks.length}
+        <span
+          className="task-status"
+          style={{
+            "--status-color": statusColor,
+          }}
+        >
+          {statusName}
         </span>
-      </header>
-
-      <div className="task-column__content">
-        {columnTasks.length > 0 ? (
-          columnTasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              workflowStatus={workflowStatus}
-              onEdit={onEditTask}
-              onDelete={onDeleteTask}
-              canEdit={canEditTasks}
-              canDelete={canDeleteTasks}
-              isDeleting={
-                deletingTaskId === task.id
-              }
-            />
-          ))
-        ) : (
-          <p className="task-column__empty">
-            No tasks in this column.
-          </p>
-        )}
       </div>
-    </section>
+
+      <p>{task.description}</p>
+
+<div className="task-card__metadata">
+  {task.dueDate && (
+    <div
+      className={
+        `task-due-date ` +
+        `task-due-date--${dueDateState}`
+      }
+    >
+      {dueDateLabel}
+    </div>
+  )}
+
+  <div
+    className={
+      `task-assignee ` +
+      `${
+        task.assigneeId
+          ? ""
+          : "task-assignee--unassigned"
+      }`
+    }
+    title={assignee?.email ?? assigneeName}
+  >
+    <span
+      className="task-assignee__avatar"
+      aria-hidden="true"
+    >
+      {assigneeInitial}
+    </span>
+
+    <span className="task-assignee__name">
+      {assigneeName}
+    </span>
+  </div>
+</div>
+
+{(canEdit || canDelete) && (
+        <div className="task-card__actions">
+          {canEdit && (
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => onEdit(task)}
+              disabled={isDeleting}
+            >
+              Edit
+            </button>
+          )}
+
+          {canDelete && (
+            <button
+              type="button"
+              className="button button--danger"
+              onClick={() => onDelete(task)}
+              disabled={isDeleting}
+            >
+              {isDeleting
+                ? "Deleting..."
+                : "Delete"}
+            </button>
+          )}
+        </div>
+      )}
+    </article>
   );
 }
 
-export default TaskColumn;
+export default TaskCard;
