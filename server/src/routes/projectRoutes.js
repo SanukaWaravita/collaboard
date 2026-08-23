@@ -8,6 +8,11 @@ import {
 } from "../controllers/projectController.js";
 import { createTask } from "../controllers/taskController.js";
 import {
+  cancelProjectInvitation,
+  getProjectInvitations,
+  inviteProjectMember,
+} from "../controllers/invitationController.js";
+import {
   getProjectMembers,
   removeProjectMember,
   transferProjectOwnership,
@@ -19,11 +24,6 @@ import {
   getWorkflowStatuses,
   updateWorkflowStatus,
 } from "../controllers/workflowStatusController.js";
-import {
-  cancelProjectInvitation,
-  getProjectInvitations,
-  inviteProjectMember,
-} from "../controllers/invitationController.js";
 
 const router = Router();
 
@@ -32,7 +32,7 @@ router
   .get(getProjects)
   .post(createProject);
 
-  router.get(
+router.get(
   "/:projectId/members",
   getProjectMembers,
 );
@@ -52,12 +52,10 @@ router.post(
   transferProjectOwnership,
 );
 
-
-
 router
-.route("/:projectId/invitations")
-.get(getProjectInvitations)
-.post(inviteProjectMember);
+  .route("/:projectId/invitations")
+  .get(getProjectInvitations)
+  .post(inviteProjectMember);
 
 router.delete(
   "/:projectId/invitations/:invitationId",
@@ -82,8 +80,4 @@ router
 
 router.post("/:projectId/tasks", createTask);
 
-
 export default router;
-
-
-

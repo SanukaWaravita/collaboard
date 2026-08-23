@@ -8,6 +8,7 @@ import ProjectViewToggle from "../components/ProjectViewToggle";
 import TaskColumn from "../components/TaskColumn";
 import TaskForm from "../components/TaskForm";
 import TaskList from "../components/TaskList";
+import WorkflowStatusManager from "../components/WorkflowStatusManager";
 import { PROJECT_PERMISSIONS } from "../constants/access";
 import {
   apiRequest,
@@ -19,11 +20,10 @@ function ProjectPage() {
   const navigate = useNavigate();
 
   const [project, setProject] = useState(null);
-const [tasks, setTasks] = useState([]);
-const [activeView, setActiveView] =
-  useState("kanban");
-const [isLoading, setIsLoading] = useState(true);
-
+  const [tasks, setTasks] = useState([]);
+  const [activeView, setActiveView] =
+    useState("kanban");
+  const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -38,6 +38,16 @@ const [isLoading, setIsLoading] = useState(true);
     useState(null);
   const [taskActionError, setTaskActionError] =
     useState("");
+  const [
+  isWorkflowManagerOpen,
+  setIsWorkflowManagerOpen,
+] = useState(false);
+
+const [isSavingWorkflow, setIsSavingWorkflow] =
+  useState(false);
+
+const [workflowError, setWorkflowError] =
+  useState("");
 
   useEffect(() => {
     let shouldIgnore = false;
@@ -91,14 +101,17 @@ const [isLoading, setIsLoading] = useState(true);
     navigate,
     reloadKey,
   ]);
+  
   const canManageMembers =
   project?.permissions.includes(
     PROJECT_PERMISSIONS.MANAGE_MEMBERS,
   ) ?? false;
-  const canManageMembers =
+
+  const canManageWorkflow =
   project?.permissions.includes(
-    PROJECT_PERMISSIONS.MANAGE_MEMBERS,
+    PROJECT_PERMISSIONS.UPDATE_PROJECT,
   ) ?? false;
+
   const canCreateTask =
     project?.permissions.includes(
       PROJECT_PERMISSIONS.CREATE_TASK,
@@ -120,7 +133,162 @@ const [isLoading, setIsLoading] = useState(true);
   (firstStatus, secondStatus) =>
     firstStatus.position - secondStatus.position,
 );
+  function openWorkflowManager() {
+  if (!canManageWorkflow) {
+    return;
+  }
 
+  setWorkflowError("");
+  setIsWorkflowManagerOpen(true);
+  }
+
+  function closeWorkflowManager() {
+    if (isSavingWorkflow) {
+      return;
+    }
+
+    setIsWorkflowManagerOpen(false);
+    setWorkflowError("");
+  }
+
+async function handleCreateWorkflowStatus(
+  statusData,
+) {
+  setWorkflowError("");
+  setIsSavingWorkflow(true);
+
+  try {
+    const data = await apiRequest(
+      `/projects/${projectId}/statuses`,
+      {
+        method: "POST",
+        body: statusData,
+      },
+    );
+
+    setProject((currentProject) =>
+      currentProject
+        ? {
+            ...currentProject,
+            workflowStatuses:
+              data.workflowStatuses,
+          }
+        : currentProject,
+    );
+
+    return true;
+  } catch (requestError) {
+    if (requestError.status === 401) {
+      clearSession();
+      navigate("/login", { replace: true });
+      return false;
+    }
+
+    setWorkflowError(requestError.message);
+    return false;
+  } finally {
+    setIsSavingWorkflow(false);
+  }
+}
+
+async function handleUpdateWorkflowStatus(
+  statusId,
+  statusData,
+) {
+  setWorkflowError("");
+  setIsSavingWorkflow(true);
+
+  try {
+    const data = await apiRequest(
+      `/projects/${projectId}/statuses/${statusId}`,
+      {
+        method: "PATCH",
+        body: statusData,
+      },
+    );
+
+    setProject((currentProject) =>
+      currentProject
+        ? {
+            ...currentProject,
+            workflowStatuses:
+              data.workflowStatuses,
+          }
+        : currentProject,
+    );
+
+    return true;
+  } catch (requestError) {
+    if (requestError.status === 401) {
+      clearSession();
+      navigate("/login", { replace: true });
+      return false;
+    }
+
+    setWorkflowError(requestError.message);
+    return false;
+  } finally {
+    setIsSavingWorkflow(false);
+  }
+}
+
+async function handleDeleteWorkflowStatus(
+  statusId,
+  replacementStatusId,
+) {
+  setWorkflowError("");
+  setIsSavingWorkflow(true);
+
+  try {
+    const data = await apiRequest(
+      `/projects/${projectId}/statuses/${statusId}`,
+      {
+        method: "DELETE",
+        body: replacementStatusId
+          ? { replacementStatusId }
+          : {},
+      },
+    );
+
+    setProject((currentProject) =>
+      currentProject
+        ? {
+            ...currentProject,
+            workflowStatuses:
+              data.workflowStatuses,
+          }
+        : currentProject,
+    );
+
+    if (data.replacementStatusId) {
+      setTasks((currentTasks) =>
+        currentTasks.map((task) =>
+          task.status === data.deletedStatusId
+            ? {
+                ...task,
+                status:
+                  data.replacementStatusId,
+                version: task.version + 1,
+              }
+            : task,
+        ),
+      );
+    }
+
+    return true;
+  } catch (requestError) {
+    if (requestError.status === 401) {
+      clearSession();
+      navigate("/login", { replace: true });
+      return false;
+    }
+
+    setWorkflowError(requestError.message);
+    return false;
+  } finally {
+    setIsSavingWorkflow(false);
+  }
+}
 
   function openCreateTaskForm() {
     if (!canCreateTask) {
@@ -320,26 +488,61 @@ const [isLoading, setIsLoading] = useState(true);
   return (
     <main className="board-page">
       <ProjectHeader
-  project={project}
-  taskCount={tasks.length}
-  backTo={`/workspaces/${workspaceId}/projects`}
-  manageAccessTo={`/workspaces/${workspaceId}/projects/${projectId}/access`}
-  onAddTask={openCreateTaskForm}
-  canAddTask={canCreateTask}
-  canManageMembers={canManageMembers}
-/>
-
+        project={project}
+        taskCount={tasks.length}
+        backTo={`/workspaces/${workspaceId}/projects`}
+        manageAccessTo={`/workspaces/${workspaceId}/projects/${projectId}/access`}
+        onAddTask={openCreateTaskForm}
+        canAddTask={canCreateTask}
+        canManageMembers={canManageMembers}
+      />
 
       {taskActionError && (
-        <p className="board-action-error" role="alert">
-          {taskActionError}
-        </p>
-      )}
+  <p className="board-action-error" role="alert">
+    {taskActionError}
+  </p>
+)}
 
-      <div className="task-board">
+<section
+  className="project-view-toolbar"
+  aria-label="Project task view controls"
+>
+  <div>
+    <p className="project-view-toolbar__label">
+      Task view
+    </p>
+
+    <p className="project-view-toolbar__description">
+      Switch between the workflow board and a compact
+      task list.
+    </p>
+  </div>
+
+  <div className="project-view-toolbar__actions">
+  <ProjectViewToggle
+    activeView={activeView}
+    onViewChange={setActiveView}
+  />
+
+  {canManageWorkflow && (
+    <button
+      type="button"
+      className="button button--secondary"
+      onClick={openWorkflowManager}
+    >
+      Manage Statuses
+    </button>
+  )}
+</div>
+</section>
+
+{activeView === "kanban" && (
+  <div className="task-board">
+    {workflowStatuses.map(
+      (workflowStatus) => (
         <TaskColumn
-          title="To Do"
-          status="todo"
+          key={workflowStatus.id}
+          workflowStatus={workflowStatus}
           tasks={tasks}
           onEditTask={openEditTaskForm}
           onDeleteTask={handleDeleteTask}
@@ -347,31 +550,43 @@ const [isLoading, setIsLoading] = useState(true);
           canDeleteTasks={canDeleteTasks}
           deletingTaskId={deletingTaskId}
         />
+      ),
+    )}
+  </div>
+)}
 
-        <TaskColumn
-          title="Doing"
-          status="doing"
-          tasks={tasks}
-          onEditTask={openEditTaskForm}
-          onDeleteTask={handleDeleteTask}
-          canEditTasks={canUpdateTasks}
-          canDeleteTasks={canDeleteTasks}
-          deletingTaskId={deletingTaskId}
-        />
+{activeView === "list" && (
+  <TaskList
+    tasks={tasks}
+    workflowStatuses={workflowStatuses}
+    onEditTask={openEditTaskForm}
+    onDeleteTask={handleDeleteTask}
+    canEditTasks={canUpdateTasks}
+    canDeleteTasks={canDeleteTasks}
+    deletingTaskId={deletingTaskId}
+  />
+)}
 
-        <TaskColumn
-          title="Done"
-          status="done"
-          tasks={tasks}
-          onEditTask={openEditTaskForm}
-          onDeleteTask={handleDeleteTask}
-          canEditTasks={canUpdateTasks}
-          canDeleteTasks={canDeleteTasks}
-          deletingTaskId={deletingTaskId}
-        />
-      </div>
+{isWorkflowManagerOpen && (
+  <WorkflowStatusManager
+    workflowStatuses={workflowStatuses}
+    tasks={tasks}
+    onCreateStatus={
+      handleCreateWorkflowStatus
+    }
+    onUpdateStatus={
+      handleUpdateWorkflowStatus
+    }
+    onDeleteStatus={
+      handleDeleteWorkflowStatus
+    }
+    onClose={closeWorkflowManager}
+    isSaving={isSavingWorkflow}
+    error={workflowError}
+  />
+)}
 
-      {isTaskFormOpen && (
+{isTaskFormOpen && (
         <TaskForm
           key={
             editingTask
@@ -379,8 +594,8 @@ const [isLoading, setIsLoading] = useState(true);
               : "new-task"
           }
           initialTask={editingTask}
-workflowStatuses={workflowStatuses}
-onSubmit={handleSaveTask}
+          workflowStatuses={workflowStatuses}
+          onSubmit={handleSaveTask}
           onCancel={closeTaskForm}
           isSubmitting={isSavingTask}
           error={taskFormError}
@@ -391,4 +606,3 @@ onSubmit={handleSaveTask}
 }
 
 export default ProjectPage;
-
