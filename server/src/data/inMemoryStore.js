@@ -1,3 +1,8 @@
+import {
+  createDefaultWorkflowStatuses,
+} from "../utils/workflowStatuses.js";
+
+
 export const store = {
   users: [],
 
@@ -24,21 +29,24 @@ export const store = {
         "Plan and monitor the development of the group project.",
       visibility: "open",
       ownerId: "temporary-user",
-      createdAt: "2026-08-14T00:00:00.000Z",
+workflowStatuses: createDefaultWorkflowStatuses(),
+createdAt: "2026-08-14T00:00:00.000Z",
+
       updatedAt: "2026-08-14T00:00:00.000Z",
     },
     {
-      id: "m1-planning",
-      workspaceId: "collaboard-workspace",
-      projectKey: "M1",
-      name: "Milestone 1 Planning",
-      description:
-        "Track the interface, documentation, and repository setup.",
-      visibility: "private",
-      ownerId: "temporary-user",
-      createdAt: "2026-08-14T00:00:00.000Z",
-      updatedAt: "2026-08-14T00:00:00.000Z",
-    },
+  id: "m1-planning",
+  workspaceId: "collaboard-workspace",
+  projectKey: "M1",
+  name: "Milestone 1 Planning",
+  description:
+    "Track the interface, documentation, and repository setup.",
+  visibility: "private",
+  ownerId: "temporary-user",
+  workflowStatuses: createDefaultWorkflowStatuses(),
+  createdAt: "2026-08-14T00:00:00.000Z",
+  updatedAt: "2026-08-14T00:00:00.000Z",
+},
   ],
 
   projectMembers: [],

@@ -16,6 +16,10 @@ import {
   projectKeyExists,
   validateProjectKey,
 } from "../utils/projectKey.js";
+import {
+  createDefaultWorkflowStatuses,
+} from "../utils/workflowStatuses.js";
+
 
 function presentProject(project, userId) {
   const access = getProjectAccess(project, userId);
@@ -164,16 +168,17 @@ export function createProject(request, response) {
   const timestamp = new Date().toISOString();
 
   const project = {
-    id: randomUUID(),
-    workspaceId: workspace.id,
-    projectKey: normalizedKey,
-    name: name.trim(),
-    description: description.trim(),
-    visibility,
-    ownerId: request.user.id,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
+  id: randomUUID(),
+  workspaceId: workspace.id,
+  projectKey: normalizedKey,
+  name: name.trim(),
+  description: description.trim(),
+  visibility,
+  ownerId: request.user.id,
+  workflowStatuses: createDefaultWorkflowStatuses(),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+};
 
   store.projects.push(project);
 
