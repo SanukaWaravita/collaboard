@@ -114,6 +114,14 @@ const [isLoading, setIsLoading] = useState(true);
       PROJECT_PERMISSIONS.DELETE_TASK,
     ) ?? false;
 
+  const workflowStatuses = [
+  ...(project?.workflowStatuses ?? []),
+].sort(
+  (firstStatus, secondStatus) =>
+    firstStatus.position - secondStatus.position,
+);
+
+
   function openCreateTaskForm() {
     if (!canCreateTask) {
       return;
@@ -371,7 +379,8 @@ const [isLoading, setIsLoading] = useState(true);
               : "new-task"
           }
           initialTask={editingTask}
-          onSubmit={handleSaveTask}
+workflowStatuses={workflowStatuses}
+onSubmit={handleSaveTask}
           onCancel={closeTaskForm}
           isSubmitting={isSavingTask}
           error={taskFormError}
