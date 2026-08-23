@@ -1,48 +1,93 @@
 import { Link } from "react-router";
+import { PROJECT_PERMISSIONS } from "../constants/access";
 
-function BoardCard({
-  board,
+function ProjectCard({
+  project,
   onEdit,
   onDelete,
   isDeleting = false,
 }) {
+  const permissions = project.permissions ?? [];
+
+  const canEdit = permissions.includes(
+    PROJECT_PERMISSIONS.UPDATE_PROJECT,
+  );
+
+  const canDelete = permissions.includes(
+    PROJECT_PERMISSIONS.DELETE_PROJECT,
+  );
+
   return (
     <article className="board-card">
       <div className="board-card__content">
-        <h2>{board.name}</h2>
+        <div className="entity-card__heading">
+          <div>
+            <span className="project-key">
+              {project.projectKey}
+            </span>
+
+            <h2>{project.name}</h2>
+          </div>
+
+          <span
+            className={
+              `entity-badge ` +
+              `entity-badge--${project.visibility}`
+            }
+          >
+            {project.visibility}
+          </span>
+        </div>
 
         <p>
-          {board.description || "No description provided."}
+          {project.description || "No description provided."}
         </p>
+
+        <div className="entity-card__metadata">
+          <span>
+            Role: {project.currentUserRole ?? "None"}
+          </span>
+
+          {!project.isMember && (
+            <span>Open workspace access</span>
+          )}
+        </div>
       </div>
 
       <div className="board-card__footer">
         <span>
-          {board.taskCount}{" "}
-          {board.taskCount === 1 ? "task" : "tasks"}
+          {project.taskCount}{" "}
+          {project.taskCount === 1 ? "task" : "tasks"}
         </span>
 
         <div className="board-card__actions">
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={() => onEdit(board)}
-            disabled={isDeleting}
-          >
-            Edit
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => onEdit(project)}
+              disabled={isDeleting}
+            >
+              Edit
+            </button>
+          )}
 
-          <button
-            type="button"
-            className="button button--danger"
-            onClick={() => onDelete(board)}
-            disabled={isDeleting}
-          >
-            {isDeleting ? "Deleting..." : "Delete"}
-          </button>
+          {canDelete && (
+            <button
+              type="button"
+              className="button button--danger"
+              onClick={() => onDelete(project)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+          )}
 
           <Link
-            to={`/boards/${board.id}`}
+            to={
+              `/workspaces/${project.workspaceId}` +
+              `/projects/${project.id}`
+            }
             className="button button--primary board-card__link"
             aria-disabled={isDeleting}
             onClick={(event) => {
@@ -51,7 +96,7 @@ function BoardCard({
               }
             }}
           >
-            Open Board
+            Open Project
           </Link>
         </div>
       </div>
@@ -59,4 +104,4 @@ function BoardCard({
   );
 }
 
-export default BoardCard;
+export default ProjectCard;
