@@ -1,132 +1,79 @@
-import {
-  getDueDateLabel,
-  getDueDateState,
-} from "../utils/taskDueDate";
+import TaskCard from "./TaskCard";
 
-function TaskCard({
-  task,
+function TaskColumn({
   workflowStatus,
+  tasks,
   projectMembers = [],
-  onEdit,
-  onDelete,
-  canEdit = false,
-  canDelete = false,
-  isDeleting = false,
+  onEditTask,
+  onDeleteTask,
+  onTaskDragStart,
+  onTaskDragEnd,
+  onTaskDragOver,
+  onTaskDragLeave,
+  onTaskDrop,
+  canEditTasks = false,
+  canDeleteTasks = false,
+  deletingTaskId = null,
+  draggingTaskId = null,
+  movingTaskId = null,
+  dropTargetStatusId = null,
 }) {
-  const assignee = task.assigneeId
-  ? projectMembers.find(
-      (member) =>
-        member.userId === task.assigneeId,
-    )
-  : null;
+  const columnTasks = tasks.filter((task) => task.status === workflowStatus.id);
 
-const assigneeName = task.assigneeId
-  ? assignee?.name ?? "Unknown assignee"
-  : "Unassigned";
+  const isDropTarget = dropTargetStatusId === workflowStatus.id;
 
-const assigneeInitial = assignee?.name
-  ?.trim()
-  .charAt(0)
-  .toUpperCase() ?? "—";
-
-  const statusName =
-    workflowStatus?.name ?? "Unknown status";
-
-  const statusColor =
-    workflowStatus?.color ?? "#64748b";
-
-  const dueDateState = getDueDateState(
-    task.dueDate,
-    workflowStatus?.isCompleted ?? false,
-  );
-
-  const dueDateLabel = getDueDateLabel(
-    task.dueDate,
-    workflowStatus?.isCompleted ?? false,
-  );
+  const columnClassName = [
+    "task-column",
+    isDropTarget ? "task-column--drop-target" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <article className="task-card">
-      <div className="task-card__header">
-        <h3>{task.title}</h3>
+    <section
+      className={columnClassName}
+      style={{
+        "--status-color": workflowStatus.color,
+      }}
+      aria-label={`${workflowStatus.name} status column`}
+      onDragOver={(event) => onTaskDragOver(event, workflowStatus.id)}
+      onDragLeave={(event) => onTaskDragLeave(event, workflowStatus.id)}
+      onDrop={(event) => onTaskDrop(event, workflowStatus.id)}
+    >
+      <header className="task-column__header">
+        <h2>{workflowStatus.name}</h2>
 
-        <span
-          className="task-status"
-          style={{
-            "--status-color": statusColor,
-          }}
-        >
-          {statusName}
-        </span>
+        <span className="task-column__count">{columnTasks.length}</span>
+      </header>
+
+      <div className="task-column__content">
+        {columnTasks.length > 0 ? (
+          columnTasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              workflowStatus={workflowStatus}
+              projectMembers={projectMembers}
+              onEdit={onEditTask}
+              onDelete={onDeleteTask}
+              onDragStart={onTaskDragStart}
+              onDragEnd={onTaskDragEnd}
+              canEdit={canEditTasks}
+              canDelete={canDeleteTasks}
+              canDrag={canEditTasks && movingTaskId === null}
+              isDeleting={deletingTaskId === task.id}
+              isDragging={draggingTaskId === task.id}
+              isMoving={movingTaskId === task.id}
+            />
+          ))
+        ) : (
+          <p className="task-column__empty">
+            {isDropTarget ? "Drop task here." : "No tasks in this column."}
+          </p>
+        )}
       </div>
-
-      <p>{task.description}</p>
-
-<div className="task-card__metadata">
-  {task.dueDate && (
-    <div
-      className={
-        `task-due-date ` +
-        `task-due-date--${dueDateState}`
-      }
-    >
-      {dueDateLabel}
-    </div>
-  )}
-
-  <div
-    className={
-      `task-assignee ` +
-      `${
-        task.assigneeId
-          ? ""
-          : "task-assignee--unassigned"
-      }`
-    }
-    title={assignee?.email ?? assigneeName}
-  >
-    <span
-      className="task-assignee__avatar"
-      aria-hidden="true"
-    >
-      {assigneeInitial}
-    </span>
-
-    <span className="task-assignee__name">
-      {assigneeName}
-    </span>
-  </div>
-</div>
-
-{(canEdit || canDelete) && (
-        <div className="task-card__actions">
-          {canEdit && (
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={() => onEdit(task)}
-              disabled={isDeleting}
-            >
-              Edit
-            </button>
-          )}
-
-          {canDelete && (
-            <button
-              type="button"
-              className="button button--danger"
-              onClick={() => onDelete(task)}
-              disabled={isDeleting}
-            >
-              {isDeleting
-                ? "Deleting..."
-                : "Delete"}
-            </button>
-          )}
-        </div>
-      )}
-    </article>
+    </section>
   );
 }
 
-export default TaskCard;
+export default TaskColumn;
