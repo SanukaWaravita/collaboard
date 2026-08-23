@@ -1,0 +1,10 @@
+@import "./styles/base.css";
+@import "./styles/board.css";
+@import "./styles/forms.css";
+@import "./styles/auth.css";
+@import "./styles/entities.css";
+@import "./styles/shared-ui.css";
+@import "./styles/access.css";
+@import "./styles/task-views.css";
+@import "./styles/workflow.css";
+@import "./styles/task-metadata.css";
