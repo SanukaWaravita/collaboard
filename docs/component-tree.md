@@ -33,6 +33,8 @@ flowchart TD
     Routes --> Boards
     Routes --> Board
 
+ Board
+
     Boards --> BoardCard
     Boards --> CreateBoard
 

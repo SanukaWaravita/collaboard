@@ -61,4 +61,3 @@ export function generateProjectKey(
 
   return candidate;
 }
-

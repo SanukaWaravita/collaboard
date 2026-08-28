@@ -73,4 +73,3 @@ export function hasWorkspacePermission(
 
   return Boolean(access?.permissions.includes(permission));
 }
-

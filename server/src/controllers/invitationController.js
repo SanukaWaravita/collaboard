@@ -477,4 +477,3 @@ export function declineInvitation(
     invitation: presentInvitation(invitation),
   });
 }
-

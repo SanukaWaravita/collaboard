@@ -46,4 +46,3 @@ export function generateWorkspaceSlug(name) {
 
   return candidate;
 }
-
