@@ -7,8 +7,6 @@ import {
   WORKSPACE_ROLES,
 } from "../constants/access.js";
 
-
-
 function createToken(userId) {
   const secret = process.env.JWT_SECRET;
 
@@ -87,7 +85,7 @@ export async function registerUser(request, response) {
     updatedAt: timestamp,
   };
 
-    if (store.users.length === 0) {
+  if (store.users.length === 0) {
   const joinedAt = new Date().toISOString();
 
   store.workspaces.forEach((workspace) => {
@@ -124,8 +122,6 @@ export async function registerUser(request, response) {
     });
   });
 }
-
-
 
   store.users.push(user);
 
