@@ -1,16 +1,18 @@
-import { randomUUID } from "node:crypto";
-import { store } from "../data/inMemoryStore.js";
+import mongoose from "mongoose";
 import {
-  INVITATION_STATUS,
-  MEMBER_TYPES,
   WORKSPACE_PERMISSIONS,
   WORKSPACE_ROLES,
 } from "../constants/access.js";
-
-
 import {
-  getWorkspaceAccess,
-  hasWorkspacePermission,
+  Project,
+  ProjectInvitation,
+  ProjectMember,
+  Task,
+  Workspace,
+  WorkspaceMember,
+} from "../models/index.js";
+import {
+  getWorkspacePermissions,
 } from "../utils/workspaceAccess.js";
 import {
   generateWorkspaceSlug,
@@ -19,171 +21,125 @@ import {
   workspaceSlugExists,
 } from "../utils/workspaceSlug.js";
 
-function presentWorkspace(workspace, userId) {
-  const access = getWorkspaceAccess(
-    workspace,
-    userId,
-  );
+function hasPermission(
+  membership,
+  permission,
+) {
+  return getWorkspacePermissions(
+    membership?.role,
+  ).includes(permission);
+}
+
+async function presentWorkspace(
+  workspace,
+  membership,
+) {
+  const [
+    memberCount,
+    projectCount,
+  ] = await Promise.all([
+    WorkspaceMember.countDocuments({
+      workspaceId: workspace.id,
+    }),
+
+    Project.countDocuments({
+      workspaceId: workspace.id,
+    }),
+  ]);
 
   return {
-    ...workspace,
+    ...workspace.toJSON(),
 
-    memberCount: store.workspaceMembers.filter(
-      (membership) =>
-        membership.workspaceId === workspace.id,
-    ).length,
+    memberCount,
+    projectCount,
 
-    projectCount: store.projects.filter(
-      (project) =>
-        project.workspaceId === workspace.id,
-    ).length,
+    currentUserRole:
+      membership?.role ?? null,
 
-    currentUserRole: access?.role ?? null,
-    permissions: access?.permissions ?? [],
+    permissions:
+      getWorkspacePermissions(
+        membership?.role,
+      ),
   };
 }
-export function getWorkspaceGuests(
+
+export async function getWorkspaces(
   request,
   response,
 ) {
-  const workspace = store.workspaces.find(
-    (item) =>
-      item.id === request.params.workspaceId,
-  );
-
-  if (!workspace) {
-    return response.status(404).json({
-      message: "Workspace not found",
+  const memberships =
+    await WorkspaceMember.find({
+      userId: request.user.id,
+    }).sort({
+      joinedAt: 1,
     });
-  }
 
-  if (
-    !hasWorkspacePermission(
-      workspace,
-      request.user.id,
-      WORKSPACE_PERMISSIONS.MANAGE_MEMBERS,
-    )
-  ) {
-    return response.status(403).json({
-      message:
-        "You cannot manage guests in this workspace",
-    });
-  }
-
-  const guests = store.workspaceMembers
-    .filter(
+  const workspaceIds =
+    memberships.map(
       (membership) =>
-        membership.workspaceId === workspace.id &&
-        membership.role === WORKSPACE_ROLES.GUEST,
-    )
-    .map((membership) => {
-      const user = store.users.find(
-        (item) => item.id === membership.userId,
-      );
+        membership.workspaceId,
+    );
 
-      if (!user) {
-        return null;
-      }
+  const workspaces =
+    await Workspace.find({
+      _id: {
+        $in: workspaceIds,
+      },
+    }).sort({
+      createdAt: 1,
+    });
 
-      const projects = store.projectMembers
-        .filter(
-          (projectMembership) =>
-            projectMembership.userId === user.id,
-        )
-        .map((projectMembership) => {
-          const project = store.projects.find(
-            (item) =>
-              item.id ===
-                projectMembership.projectId &&
-              item.workspaceId === workspace.id,
-          );
+  const membershipsByWorkspaceId =
+    new Map(
+      memberships.map((membership) => [
+        membership.workspaceId,
+        membership,
+      ]),
+    );
 
-          if (!project) {
-            return null;
-          }
-
-          return {
-            id: project.id,
-            projectKey: project.projectKey,
-            name: project.name,
-            role: projectMembership.role,
-          };
-        })
-        .filter(Boolean);
-
-      return {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        joinedAt: membership.joinedAt,
-        projects,
-      };
-    })
-    .filter(Boolean);
-
-  const pendingGuestInvitations =
-    store.projectInvitations
-      .filter(
-        (invitation) =>
-          invitation.workspaceId === workspace.id &&
-          invitation.memberType ===
-            MEMBER_TYPES.GUEST &&
-          invitation.status ===
-            INVITATION_STATUS.PENDING,
-      )
-      .map((invitation) => ({
-        id: invitation.id,
-        email: invitation.email,
-        projectId: invitation.projectId,
-        role: invitation.role,
-        createdAt: invitation.createdAt,
-      }));
+  const presentedWorkspaces =
+    await Promise.all(
+      workspaces.map((workspace) =>
+        presentWorkspace(
+          workspace,
+          membershipsByWorkspaceId.get(
+            workspace.id,
+          ),
+        ),
+      ),
+    );
 
   return response.status(200).json({
-    guests,
-    pendingGuestInvitations,
+    workspaces: presentedWorkspaces,
   });
 }
 
-
-export function getWorkspaces(request, response) {
-  const workspaceIds = new Set(
-    store.workspaceMembers
-      .filter(
-        (membership) =>
-          membership.userId === request.user.id,
-      )
-      .map(
-        (membership) => membership.workspaceId,
-      ),
-  );
-
-  const workspaces = store.workspaces
-    .filter((workspace) =>
-      workspaceIds.has(workspace.id),
-    )
-    .map((workspace) =>
-      presentWorkspace(workspace, request.user.id),
-    );
-
-  return response.status(200).json({ workspaces });
-}
-
-export function createWorkspace(request, response) {
+export async function createWorkspace(
+  request,
+  response,
+) {
   const {
     name,
     slug: requestedSlug,
   } = request.body ?? {};
 
-  if (typeof name !== "string" || !name.trim()) {
+  if (
+    typeof name !== "string" ||
+    !name.trim()
+  ) {
     return response.status(400).json({
-      message: "Workspace name is required",
+      message:
+        "Workspace name is required",
     });
   }
 
   const slug = requestedSlug
-    ? normalizeWorkspaceSlug(requestedSlug)
-    : generateWorkspaceSlug(name);
+    ? normalizeWorkspaceSlug(
+        requestedSlug,
+      )
+    : await generateWorkspaceSlug(
+        name,
+      );
 
   if (!validateWorkspaceSlug(slug)) {
     return response.status(400).json({
@@ -192,87 +148,136 @@ export function createWorkspace(request, response) {
     });
   }
 
-  if (workspaceSlugExists(slug)) {
+  if (
+    await workspaceSlugExists(slug)
+  ) {
     return response.status(409).json({
       message:
         "That workspace slug is already in use",
     });
   }
 
-  const timestamp = new Date().toISOString();
+  const session =
+    await mongoose.startSession();
 
-  const workspace = {
-    id: randomUUID(),
-    name: name.trim(),
-    slug,
-    ownerId: request.user.id,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
+  let workspace;
+  let membership;
 
-  store.workspaces.push(workspace);
+  try {
+    await session.withTransaction(
+      async () => {
+        workspace = new Workspace({
+          name: name.trim(),
+          slug,
+          ownerId: request.user.id,
+        });
 
-  store.workspaceMembers.push({
-    id: randomUUID(),
-    workspaceId: workspace.id,
-    userId: request.user.id,
-    role: WORKSPACE_ROLES.OWNER,
-    joinedAt: timestamp,
-  });
+        await workspace.save({
+          session,
+        });
+
+        membership =
+          new WorkspaceMember({
+            workspaceId: workspace.id,
+            userId: request.user.id,
+            role:
+              WORKSPACE_ROLES.OWNER,
+          });
+
+        await membership.save({
+          session,
+        });
+      },
+    );
+  } catch (error) {
+    if (error?.code === 11000) {
+      return response.status(409).json({
+        message:
+          "That workspace slug is already in use",
+      });
+    }
+
+    throw error;
+  } finally {
+    await session.endSession();
+  }
 
   return response.status(201).json({
-    workspace: presentWorkspace(
-      workspace,
-      request.user.id,
-    ),
+    workspace:
+      await presentWorkspace(
+        workspace,
+        membership,
+      ),
   });
 }
 
-export function getWorkspace(request, response) {
-  const workspace = store.workspaces.find(
-    (currentWorkspace) =>
-      currentWorkspace.id ===
+export async function getWorkspace(
+  request,
+  response,
+) {
+  const [
+    workspace,
+    membership,
+  ] = await Promise.all([
+    Workspace.findById(
       request.params.workspaceId,
-  );
+    ),
+
+    WorkspaceMember.findOne({
+      workspaceId:
+        request.params.workspaceId,
+
+      userId: request.user.id,
+    }),
+  ]);
 
   if (
     !workspace ||
-    !hasWorkspacePermission(
-      workspace,
-      request.user.id,
+    !hasPermission(
+      membership,
       WORKSPACE_PERMISSIONS.READ_WORKSPACE,
     )
   ) {
     return response.status(404).json({
-      message: "Workspace not found",
+      message:
+        "Workspace not found",
     });
   }
 
   return response.status(200).json({
-    workspace: presentWorkspace(
-      workspace,
-      request.user.id,
-    ),
+    workspace:
+      await presentWorkspace(
+        workspace,
+        membership,
+      ),
   });
 }
 
-export function updateWorkspace(request, response) {
-  const workspace = store.workspaces.find(
-    (currentWorkspace) =>
-      currentWorkspace.id ===
+export async function updateWorkspace(
+  request,
+  response,
+) {
+  const workspace =
+    await Workspace.findById(
       request.params.workspaceId,
-  );
+    );
 
   if (!workspace) {
     return response.status(404).json({
-      message: "Workspace not found",
+      message:
+        "Workspace not found",
     });
   }
 
+  const membership =
+    await WorkspaceMember.findOne({
+      workspaceId: workspace.id,
+      userId: request.user.id,
+    });
+
   if (
-    !hasWorkspacePermission(
-      workspace,
-      request.user.id,
+    !hasPermission(
+      membership,
       WORKSPACE_PERMISSIONS.UPDATE_WORKSPACE,
     )
   ) {
@@ -282,49 +287,65 @@ export function updateWorkspace(request, response) {
     });
   }
 
-  const { name } = request.body ?? {};
+  const {
+    name,
+  } = request.body ?? {};
 
   if (name === undefined) {
     return response.status(400).json({
-      message: "Provide a workspace name to update",
+      message:
+        "Provide a workspace name to update",
     });
   }
 
-  if (typeof name !== "string" || !name.trim()) {
+  if (
+    typeof name !== "string" ||
+    !name.trim()
+  ) {
     return response.status(400).json({
-      message: "Workspace name cannot be empty",
+      message:
+        "Workspace name cannot be empty",
     });
   }
 
   workspace.name = name.trim();
-  workspace.updatedAt = new Date().toISOString();
+
+  await workspace.save();
 
   return response.status(200).json({
-    workspace: presentWorkspace(
-      workspace,
-      request.user.id,
-    ),
+    workspace:
+      await presentWorkspace(
+        workspace,
+        membership,
+      ),
   });
 }
 
-export function deleteWorkspace(request, response) {
-  const workspaceIndex = store.workspaces.findIndex(
-    (workspace) =>
-      workspace.id === request.params.workspaceId,
-  );
+export async function deleteWorkspace(
+  request,
+  response,
+) {
+  const workspace =
+    await Workspace.findById(
+      request.params.workspaceId,
+    );
 
-  if (workspaceIndex === -1) {
+  if (!workspace) {
     return response.status(404).json({
-      message: "Workspace not found",
+      message:
+        "Workspace not found",
     });
   }
 
-  const workspace = store.workspaces[workspaceIndex];
+  const membership =
+    await WorkspaceMember.findOne({
+      workspaceId: workspace.id,
+      userId: request.user.id,
+    });
 
   if (
-    !hasWorkspacePermission(
-      workspace,
-      request.user.id,
+    !hasPermission(
+      membership,
       WORKSPACE_PERMISSIONS.DELETE_WORKSPACE,
     )
   ) {
@@ -334,44 +355,86 @@ export function deleteWorkspace(request, response) {
     });
   }
 
-  const projectIds = new Set(
-    store.projects
-      .filter(
-        (project) =>
-          project.workspaceId === workspace.id,
-      )
-      .map((project) => project.id),
-  );
+  const session =
+    await mongoose.startSession();
 
-  store.tasks = store.tasks.filter(
-    (task) => !projectIds.has(task.projectId),
-  );
+  try {
+    await session.withTransaction(
+      async () => {
+        const projects =
+          await Project.find({
+            workspaceId: workspace.id,
+          })
+            .select("_id")
+            .session(session);
 
-  store.projectMembers =
-    store.projectMembers.filter(
-      (membership) =>
-        !projectIds.has(membership.projectId),
+        const projectIds =
+          projects.map(
+            (project) => project.id,
+          );
+
+        await Task.deleteMany(
+          {
+            projectId: {
+              $in: projectIds,
+            },
+          },
+          {
+            session,
+          },
+        );
+
+        await ProjectMember.deleteMany(
+          {
+            projectId: {
+              $in: projectIds,
+            },
+          },
+          {
+            session,
+          },
+        );
+
+        await ProjectInvitation.deleteMany(
+          {
+            workspaceId: workspace.id,
+          },
+          {
+            session,
+          },
+        );
+
+        await Project.deleteMany(
+          {
+            workspaceId: workspace.id,
+          },
+          {
+            session,
+          },
+        );
+
+        await WorkspaceMember.deleteMany(
+          {
+            workspaceId: workspace.id,
+          },
+          {
+            session,
+          },
+        );
+
+        await Workspace.deleteOne(
+          {
+            _id: workspace.id,
+          },
+          {
+            session,
+          },
+        );
+      },
     );
-
-  store.projectInvitations =
-    store.projectInvitations.filter(
-      (invitation) =>
-        !projectIds.has(invitation.projectId),
-    );
-
-  store.projects = store.projects.filter(
-    (project) =>
-      project.workspaceId !== workspace.id,
-  );
-
-  store.workspaceMembers =
-    store.workspaceMembers.filter(
-      (membership) =>
-        membership.workspaceId !== workspace.id,
-    );
-
-  store.workspaces.splice(workspaceIndex, 1);
+  } finally {
+    await session.endSession();
+  }
 
   return response.status(204).send();
 }
-

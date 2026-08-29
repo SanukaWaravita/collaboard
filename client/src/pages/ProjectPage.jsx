@@ -7,11 +7,12 @@ import TaskForm from "../components/TaskForm";
 import TaskList from "../components/TaskList";
 import WorkflowStatusManager from "../components/WorkflowStatusManager";
 import { PROJECT_PERMISSIONS } from "../constants/access";
-import { apiRequest, clearSession } from "../services/api";
+import { apiRequest, clearSession, getCurrentUser } from "../services/api";
 
 function ProjectPage() {
   const { workspaceId, projectId } = useParams();
   const navigate = useNavigate();
+  const currentUser = getCurrentUser();
 
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -21,16 +22,11 @@ function ProjectPage() {
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
-    const [isTaskFormOpen, setIsTaskFormOpen] =
-    useState(false);
+  const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
 
-  const [editingTask, setEditingTask] =
-    useState(null);
+  const [editingTask, setEditingTask] = useState(null);
 
-  const [
-    createTaskStatusId,
-    setCreateTaskStatusId,
-  ] = useState(null);
+  const [createTaskStatusId, setCreateTaskStatusId] = useState(null);
   const [isSavingTask, setIsSavingTask] = useState(false);
   const [taskFormError, setTaskFormError] = useState("");
 
@@ -290,32 +286,25 @@ function ProjectPage() {
     }
   }
 
-  function openCreateTaskForm(
-    initialStatusId = null,
-  ) {
+  function openCreateTaskForm(initialStatusId = null) {
     if (!canCreateTask) {
       return;
     }
 
     const isValidStatus = workflowStatuses.some(
-      (workflowStatus) =>
-        workflowStatus.id === initialStatusId,
+      (workflowStatus) => workflowStatus.id === initialStatusId,
     );
 
     setEditingTask(null);
 
-    setCreateTaskStatusId(
-      isValidStatus
-        ? initialStatusId
-        : null,
-    );
+    setCreateTaskStatusId(isValidStatus ? initialStatusId : null);
 
     setTaskFormError("");
     setIsTaskFormOpen(true);
   }
 
   function openEditTaskForm(task) {
-    if (!canUpdateTasks) {
+    if (!canUpdateTasks && !task.canAssignReporter) {
       return;
     }
 
@@ -325,7 +314,7 @@ function ProjectPage() {
     setIsTaskFormOpen(true);
   }
 
- function closeTaskForm() {
+  function closeTaskForm() {
     if (isSavingTask) {
       return;
     }
@@ -616,9 +605,7 @@ function ProjectPage() {
         aria-label="Project Task view controls"
       >
         <div className="project-view-toolbar__view">
-          <span className="project-view-toolbar__label">
-            View
-          </span>
+          <span className="project-view-toolbar__label">View</span>
 
           <ProjectViewToggle
             activeView={activeView}
@@ -629,22 +616,16 @@ function ProjectPage() {
         <div className="project-view-toolbar__actions">
           <span className="project-view-toolbar__summary">
             {workflowStatuses.length}{" "}
-            {workflowStatuses.length === 1
-              ? "Status"
-              : "Statuses"}
+            {workflowStatuses.length === 1 ? "Status" : "Statuses"}
             {" · "}
-            {tasks.length}{" "}
-            {tasks.length === 1
-              ? "Task"
-              : "Tasks"}
+            {tasks.length} {tasks.length === 1 ? "Task" : "Tasks"}
           </span>
 
           {canManageWorkflow && (
             <button
               type="button"
               className={
-                "button button--secondary " +
-                "project-view-toolbar__manage"
+                "button button--secondary " + "project-view-toolbar__manage"
               }
               onClick={openWorkflowManager}
             >
@@ -655,11 +636,7 @@ function ProjectPage() {
                 strokeWidth="2"
                 aria-hidden="true"
               >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="3"
-                />
+                <circle cx="12" cy="12" r="3" />
 
                 <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
               </svg>
@@ -671,10 +648,7 @@ function ProjectPage() {
       </section>
 
       {activeView === "kanban" && (
-        <section
-          className="kanban-view"
-          aria-label="Project Kanban board"
-        >
+        <section className="kanban-view" aria-label="Project Kanban board">
           {canUpdateTasks && (
             <div className="task-board__instruction">
               <svg
@@ -694,73 +668,36 @@ function ProjectPage() {
               </svg>
 
               <span>
-                Drag Task cards between status columns.
-                Keyboard and touch users can change status
-                through Edit.
+                Drag Task cards between status columns. Keyboard and touch users
+                can change status through Edit.
               </span>
             </div>
           )}
 
           <div className="task-board">
-            {workflowStatuses.map(
-              (workflowStatus) => (
-                <TaskColumn
-                  key={workflowStatus.id}
-                  workflowStatus={
-                    workflowStatus
-                  }
-                  tasks={tasks}
-                  projectMembers={
-                    projectMembers
-                  }
-                  onEditTask={
-                    openEditTaskForm
-                  }
-                  onDeleteTask={
-                    handleDeleteTask
-                  }
-                  onAddTask={
-                    openCreateTaskForm
-                  }
-                  onTaskDragStart={
-                    handleTaskDragStart
-                  }
-                  onTaskDragEnd={
-                    handleTaskDragEnd
-                  }
-                  onTaskDragOver={
-                    handleTaskDragOver
-                  }
-                  onTaskDragLeave={
-                    handleTaskDragLeave
-                  }
-                  onTaskDrop={
-                    handleTaskDrop
-                  }
-                  canAddTasks={
-                    canCreateTask
-                  }
-                  canEditTasks={
-                    canUpdateTasks
-                  }
-                  canDeleteTasks={
-                    canDeleteTasks
-                  }
-                  deletingTaskId={
-                    deletingTaskId
-                  }
-                  draggingTaskId={
-                    draggingTaskId
-                  }
-                  movingTaskId={
-                    movingTaskId
-                  }
-                  dropTargetStatusId={
-                    dropTargetStatusId
-                  }
-                />
-              ),
-            )}
+            {workflowStatuses.map((workflowStatus) => (
+              <TaskColumn
+                key={workflowStatus.id}
+                workflowStatus={workflowStatus}
+                tasks={tasks}
+                projectMembers={projectMembers}
+                onEditTask={openEditTaskForm}
+                onDeleteTask={handleDeleteTask}
+                onAddTask={openCreateTaskForm}
+                onTaskDragStart={handleTaskDragStart}
+                onTaskDragEnd={handleTaskDragEnd}
+                onTaskDragOver={handleTaskDragOver}
+                onTaskDragLeave={handleTaskDragLeave}
+                onTaskDrop={handleTaskDrop}
+                canAddTasks={canCreateTask}
+                canEditTasks={canUpdateTasks}
+                canDeleteTasks={canDeleteTasks}
+                deletingTaskId={deletingTaskId}
+                draggingTaskId={draggingTaskId}
+                movingTaskId={movingTaskId}
+                dropTargetStatusId={dropTargetStatusId}
+              />
+            ))}
           </div>
         </section>
       )}
@@ -797,17 +734,16 @@ function ProjectPage() {
           key={
             editingTask
               ? `${editingTask.id}-${editingTask.version}`
-              : `new-task-${
-                  createTaskStatusId ??
-                  "default"
-                }`
+              : `new-task-${createTaskStatusId ?? "default"}`
           }
           initialTask={editingTask}
-          initialStatusId={
-            createTaskStatusId
-          }
+          initialStatusId={createTaskStatusId}
           workflowStatuses={workflowStatuses}
           assignees={assignableProjectMembers}
+          reporters={projectMembers}
+          currentUser={currentUser}
+          canEditTaskFields={!editingTask || canUpdateTasks}
+          canAssignReporter={!editingTask || editingTask.canAssignReporter}
           onSubmit={handleSaveTask}
           onCancel={closeTaskForm}
           isSubmitting={isSavingTask}

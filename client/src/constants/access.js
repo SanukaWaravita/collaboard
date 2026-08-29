@@ -40,4 +40,3 @@ export const PROJECT_PERMISSIONS = Object.freeze({
   UPDATE_TASK: "UPDATE_TASK",
   DELETE_TASK: "DELETE_TASK",
 });
-

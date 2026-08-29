@@ -12,7 +12,8 @@ coverage/
 .env
 .env.*
 !.env.example
-server/.env
+.env.docker
+!.env.docker.example
 
 # Logs
 *.log

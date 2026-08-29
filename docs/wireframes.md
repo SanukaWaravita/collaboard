@@ -18,8 +18,8 @@ flowchart TD
     Email --> Password
     Password --> Submit
     Submit --> Register
-
 ```
+
 The login form will be displayed in a centred card.
 
 ## 2. Register page
@@ -43,6 +43,7 @@ flowchart TD
     Confirm --> Submit
     Submit --> Login
 ```
+
 The registration form will use the same visual structure as the login form.
 
 ## 3. Boards page

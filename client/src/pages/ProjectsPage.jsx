@@ -1,16 +1,12 @@
 import { useEffect, useState } from "react";
-import {
-  Link,
-  useNavigate,
-  useParams,
-} from "react-router";
+import { useNavigate, useParams } from "react-router";
 import ProjectCard from "../components/ProjectCard";
+import ProjectList from "../components/ProjectList";
 import ProjectForm from "../components/ProjectForm";
+import WorkspaceHeader from "../components/WorkspaceHeader";
+import CardListViewToggle from "../components/CardListViewToggle";
 import { WORKSPACE_PERMISSIONS } from "../constants/access";
-import {
-  apiRequest,
-  clearSession,
-} from "../services/api";
+import { apiRequest, clearSession } from "../services/api";
 
 function ProjectsPage() {
   const { workspaceId } = useParams();
@@ -18,18 +14,17 @@ function ProjectsPage() {
 
   const [workspace, setWorkspace] = useState(null);
   const [projects, setProjects] = useState([]);
+  const [activeView, setActiveView] = useState("cards");
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingProject, setEditingProject] =
-    useState(null);
+  const [editingProject, setEditingProject] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
-  const [deletingProjectId, setDeletingProjectId] =
-    useState(null);
+  const [deletingProjectId, setDeletingProjectId] = useState(null);
   const [actionError, setActionError] = useState("");
 
   useEffect(() => {
@@ -40,13 +35,10 @@ function ProjectsPage() {
       setLoadError("");
 
       try {
-        const [workspaceData, projectData] =
-          await Promise.all([
-            apiRequest(`/workspaces/${workspaceId}`),
-            apiRequest(
-              `/workspaces/${workspaceId}/projects`,
-            ),
-          ]);
+        const [workspaceData, projectData] = await Promise.all([
+          apiRequest(`/workspaces/${workspaceId}`),
+          apiRequest(`/workspaces/${workspaceId}/projects`),
+        ]);
 
         if (!shouldIgnore) {
           setWorkspace(workspaceData.workspace);
@@ -79,14 +71,12 @@ function ProjectsPage() {
   }, [workspaceId, navigate, reloadKey]);
 
   const canCreateProject =
-    workspace?.permissions.includes(
-      WORKSPACE_PERMISSIONS.CREATE_PROJECT,
-    ) ?? false;
-  
-  const canManageGuests =
-    workspace?.permissions.includes(
-      WORKSPACE_PERMISSIONS.MANAGE_MEMBERS,
-    ) ?? false;
+    workspace?.permissions.includes(WORKSPACE_PERMISSIONS.CREATE_PROJECT) ??
+    false;
+
+  const canManageMembers =
+    workspace?.permissions.includes(WORKSPACE_PERMISSIONS.MANAGE_MEMBERS) ??
+    false;
 
   function openCreateForm() {
     setEditingProject(null);
@@ -116,39 +106,27 @@ function ProjectsPage() {
 
     try {
       if (editingProject) {
-        const data = await apiRequest(
-          `/projects/${editingProject.id}`,
-          {
-            method: "PATCH",
-            body: projectData,
-          },
-        );
+        const data = await apiRequest(`/projects/${editingProject.id}`, {
+          method: "PATCH",
+          body: projectData,
+        });
 
         setProjects((currentProjects) =>
           currentProjects.map((project) =>
-            project.id === data.project.id
-              ? data.project
-              : project,
+            project.id === data.project.id ? data.project : project,
           ),
         );
       } else {
-        const data = await apiRequest(
-          `/workspaces/${workspaceId}/projects`,
-          {
-            method: "POST",
-            body: projectData,
-          },
-        );
+        const data = await apiRequest(`/workspaces/${workspaceId}/projects`, {
+          method: "POST",
+          body: projectData,
+        });
 
-        setProjects((currentProjects) => [
-          ...currentProjects,
-          data.project,
-        ]);
+        setProjects((currentProjects) => [...currentProjects, data.project]);
 
         setWorkspace((currentWorkspace) => ({
           ...currentWorkspace,
-          projectCount:
-            currentWorkspace.projectCount + 1,
+          projectCount: currentWorkspace.projectCount + 1,
         }));
       }
 
@@ -186,17 +164,13 @@ function ProjectsPage() {
 
       setProjects((currentProjects) =>
         currentProjects.filter(
-          (currentProject) =>
-            currentProject.id !== project.id,
+          (currentProject) => currentProject.id !== project.id,
         ),
       );
 
       setWorkspace((currentWorkspace) => ({
         ...currentWorkspace,
-        projectCount: Math.max(
-          0,
-          currentWorkspace.projectCount - 1,
-        ),
+        projectCount: Math.max(0, currentWorkspace.projectCount - 1),
       }));
     } catch (requestError) {
       if (requestError.status === 401) {
@@ -225,19 +199,13 @@ function ProjectsPage() {
     return (
       <main className="entity-page">
         <section className="page-error">
-          <p role="alert">
-            {loadError || "Workspace not found"}
-          </p>
+          <p role="alert">{loadError || "Workspace not found"}</p>
 
           <div className="page-error__actions">
             <button
               type="button"
               className="button button--secondary"
-              onClick={() =>
-                setReloadKey(
-                  (currentKey) => currentKey + 1,
-                )
-              }
+              onClick={() => setReloadKey((currentKey) => currentKey + 1)}
             >
               Try Again
             </button>
@@ -256,96 +224,39 @@ function ProjectsPage() {
   }
 
   return (
-    <main className="entity-page">
-      <header className="entity-page__header">
-  <div className="entity-page__header-content">
-    <Link
-      to="/workspaces"
-      className="entity-page__back"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        aria-hidden="true"
+    <main className={"board-page entity-page " + "workspace-projects-page"}>
+      <WorkspaceHeader
+        workspace={workspace}
+        projectCount={workspace.projectCount}
+        backTo="/workspaces"
+        membersTo={`/workspaces/${workspaceId}/members`}
+        onCreateProject={openCreateForm}
+        canManageMembers={canManageMembers}
+        canCreateProject={canCreateProject}
+      />
+
+      <section
+        className={"project-view-toolbar " + "workspace-project-view-toolbar"}
+        aria-label="Workspace Project view controls"
       >
-        <path d="M19 12H5" />
-        <path d="m11 18-6-6 6-6" />
-      </svg>
+        <div className="project-view-toolbar__view">
+          <span className="project-view-toolbar__label">View</span>
 
-      My Workspaces
-    </Link>
+          <CardListViewToggle
+            activeView={activeView}
+            onViewChange={setActiveView}
+            ariaLabel="Select Project view"
+            isListAvailable
+          />
+        </div>
 
-    <p className="entity-page__eyebrow">
-      {workspace.slug}
-    </p>
-
-    <h1>{workspace.name}</h1>
-
-    <div className="entity-page__metadata">
-      <span>
-        {workspace.projectCount}{" "}
-        {workspace.projectCount === 1
-          ? "project"
-          : "projects"}
-      </span>
-
-      <span aria-hidden="true">•</span>
-
-      <span>
-        Your role: {workspace.currentUserRole}
-      </span>
-    </div>
-  </div>
-
-  <div className="entity-page__actions">
-    {canManageGuests && (
-      <Link
-        to={`/workspaces/${workspaceId}/guests`}
-        className="button button--secondary"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <circle cx="9" cy="8" r="3" />
-          <path d="M3 19v-2a6 6 0 0 1 12 0v2" />
-          <path d="M16 11a4 4 0 0 1 5 4v2" />
-        </svg>
-
-        Guest Users
-      </Link>
-    )}
-
-    {canCreateProject && (
-      <button
-        type="button"
-        className={
-          `button button--primary ` +
-          `entity-page__primary-action`
-        }
-        onClick={openCreateForm}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <path d="M12 5v14" />
-          <path d="M5 12h14" />
-        </svg>
-
-        Create Project
-      </button>
-    )}
-  </div>
-</header>
+        <div className="project-view-toolbar__actions">
+          <span className="project-view-toolbar__summary">
+            {projects.length}{" "}
+            {projects.length === 1 ? "available Project" : "available Projects"}
+          </span>
+        </div>
+      </section>
 
       {actionError && (
         <p className="board-action-error" role="alert">
@@ -359,8 +270,8 @@ function ProjectsPage() {
 
           <p>
             {canCreateProject
-              ? "Create the first project in this workspace."
-              : "You currently have access to no projects in this workspace."}
+              ? "Create the first project in this Workspace."
+              : "You currently have access to no Projects in this Workspace."}
           </p>
 
           {canCreateProject && (
@@ -373,23 +284,25 @@ function ProjectsPage() {
             </button>
           )}
         </section>
-      ) : (
-        <section
-          className="entity-grid"
-          aria-label="Available projects"
-        >
+      ) : activeView === "cards" ? (
+        <section className="entity-grid" aria-label="Available Projects">
           {projects.map((project) => (
             <ProjectCard
               key={project.id}
               project={project}
               onEdit={openEditForm}
               onDelete={handleDeleteProject}
-              isDeleting={
-                deletingProjectId === project.id
-              }
+              isDeleting={deletingProjectId === project.id}
             />
           ))}
         </section>
+      ) : (
+        <ProjectList
+          projects={projects}
+          onEdit={openEditForm}
+          onDelete={handleDeleteProject}
+          deletingProjectId={deletingProjectId}
+        />
       )}
 
       {isFormOpen && (

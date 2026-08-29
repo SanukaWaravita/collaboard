@@ -1,8 +1,6 @@
+import { getDueDateLabel, getDueDateState } from "../utils/taskDueDate";
 import {
-  getDueDateLabel,
-  getDueDateState,
-} from "../utils/taskDueDate";
-import {
+  getAssigneeInitial,
   resolveTaskAssignees,
 } from "../utils/taskAssignee";
 
@@ -17,10 +15,7 @@ function TaskList({
   deletingTaskId = null,
 }) {
   const statusesById = new Map(
-    workflowStatuses.map((status) => [
-      status.id,
-      status,
-    ]),
+    workflowStatuses.map((status) => [status.id, status]),
   );
 
   if (tasks.length === 0) {
@@ -28,24 +23,17 @@ function TaskList({
       <section className="task-list-empty">
         <h2>No tasks yet</h2>
 
-        <p>
-          Tasks created in this project will appear here.
-        </p>
+        <p>Tasks created in this project will appear here.</p>
       </section>
     );
   }
 
   return (
-    <section
-      className="task-list"
-      aria-labelledby="task-list-title"
-    >
+    <section className="task-list" aria-labelledby="task-list-title">
       <header className="task-list__header">
         <h2 id="task-list-title">All Tasks</h2>
 
-        <span className="task-list__count">
-          {tasks.length}
-        </span>
+        <span className="task-list__count">{tasks.length}</span>
       </header>
 
       <div className="task-list__table-wrapper">
@@ -56,6 +44,7 @@ function TaskList({
               <th scope="col">Description</th>
               <th scope="col">Status</th>
               <th scope="col">Assignee</th>
+              <th scope="col">Reporter</th>
               <th scope="col">Due date</th>
               <th scope="col">Actions</th>
             </tr>
@@ -63,53 +52,48 @@ function TaskList({
 
           <tbody>
             {tasks.map((task) => {
-              const isDeleting =
-                deletingTaskId === task.id;
+              const isDeleting = deletingTaskId === task.id;
 
-              const workflowStatus =
-                statusesById.get(task.status);
+              const canOpenTaskForm = canEditTasks || task.canAssignReporter;
 
-              const statusName =
-                workflowStatus?.name ??
-                "Unknown status";
+              const workflowStatus = statusesById.get(task.status);
 
-              const statusColor =
-  workflowStatus?.color ??
-  "#64748b";
+              const statusName = workflowStatus?.name ?? "Unknown status";
 
-const dueDateState = getDueDateState(
-  task.dueDate,
-  workflowStatus?.isCompleted ?? false,
-);
+              const statusColor = workflowStatus?.color ?? "#64748b";
 
-const taskAssignees =
-  resolveTaskAssignees(
-    task.assigneeIds,
-    projectMembers,
-  );
+              const dueDateState = getDueDateState(
+                task.dueDate,
+                workflowStatus?.isCompleted ?? false,
+              );
 
-const dueDateLabel = getDueDateLabel(
-  task.dueDate,
-  workflowStatus?.isCompleted ?? false,
-);
+              const taskAssignees = resolveTaskAssignees(
+                task.assigneeIds,
+                projectMembers,
+              );
 
-return (
+              const reporterName = task.reporter?.name ?? "Unknown reporter";
+
+              const reporterEmail = task.reporter?.email ?? null;
+
+              const dueDateLabel = getDueDateLabel(
+                task.dueDate,
+                workflowStatus?.isCompleted ?? false,
+              );
+
+              return (
                 <tr key={task.id}>
-                  <td className="task-list__title">
-                    {task.title}
-                  </td>
+                  <td className="task-list__title">{task.title}</td>
 
                   <td className="task-list__description">
-                    {task.description ||
-                      "No description"}
+                    {task.description || "No description"}
                   </td>
 
                   <td>
                     <span
                       className="task-status"
                       style={{
-                        "--status-color":
-                          statusColor,
+                        "--status-color": statusColor,
                       }}
                     >
                       {statusName}
@@ -117,57 +101,76 @@ return (
                   </td>
 
                   <td className="task-list__assignee">
-  <div
-  className="task-assignee-list"
-  aria-label="Task Assignees"
->
-  {taskAssignees.length === 0 ? (
-    <div
-      className={
-        "task-assignee " +
-        "task-assignee--unassigned"
-      }
-      title="Unassigned"
-    >
-      <span
-        className="task-assignee__avatar"
-        aria-hidden="true"
-      >
-        —
-      </span>
+                    <div
+                      className="task-assignee-list"
+                      aria-label="Task Assignees"
+                    >
+                      {taskAssignees.length === 0 ? (
+                        <div
+                          className={
+                            "task-assignee " + "task-assignee--unassigned"
+                          }
+                          title="Unassigned"
+                        >
+                          <span
+                            className="task-assignee__avatar"
+                            aria-hidden="true"
+                          >
+                            —
+                          </span>
 
-      <span className="task-assignee__name">
-        Unassigned
-      </span>
-    </div>
-  ) : (
-    taskAssignees.map((assignee) => (
-      <div
-        key={assignee.userId}
-        className="task-assignee"
-        title={assignee.email ?? assignee.name}
-      >
-        <span
-          className="task-assignee__avatar"
-          aria-hidden="true"
-        >
-          {assignee.initial}
-        </span>
+                          <span className="task-assignee__name">
+                            Unassigned
+                          </span>
+                        </div>
+                      ) : (
+                        taskAssignees.map((assignee) => (
+                          <div
+                            key={assignee.userId}
+                            className="task-assignee"
+                            title={assignee.email ?? assignee.name}
+                          >
+                            <span
+                              className="task-assignee__avatar"
+                              aria-hidden="true"
+                            >
+                              {assignee.initial}
+                            </span>
 
-        <span className="task-assignee__name">
-          {assignee.name}
-        </span>
-      </div>
-    ))
-  )}
-</div>
-</td>
+                            <span className="task-assignee__name">
+                              {assignee.name}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </td>
+
+                  <td className="task-list__reporter">
+                    <div
+                      className="task-reporter"
+                      title={reporterEmail ?? reporterName}
+                      aria-label={`Reporter: ${reporterName}`}
+                    >
+                      <span
+                        className="task-reporter__avatar"
+                        aria-hidden="true"
+                      >
+                        {getAssigneeInitial(reporterName)}
+                      </span>
+
+                      <span className="task-reporter__identity">
+                        <span className="task-reporter__name">
+                          {reporterName}
+                        </span>
+                      </span>
+                    </div>
+                  </td>
 
                   <td className="task-list__due-date">
                     <span
                       className={
-                        `task-due-date ` +
-                        `task-due-date--${dueDateState}`
+                        `task-due-date ` + `task-due-date--${dueDateState}`
                       }
                     >
                       {dueDateLabel}
@@ -175,22 +178,17 @@ return (
                   </td>
 
                   <td>
-                    {(canEditTasks ||
-                      canDeleteTasks) && (
+                    {(canOpenTaskForm || canDeleteTasks) && (
                       <div className="task-list__actions">
-                        {canEditTasks && (
+                        {canOpenTaskForm && (
                           <button
                             type="button"
                             className="button button--secondary"
-                            onClick={() =>
-                              onEditTask(task)
-                            }
-                            aria-label={
-                              `Edit ${task.title}`
-                            }
+                            onClick={() => onEditTask(task)}
+                            aria-label={`Edit ${task.title}`}
                             disabled={isDeleting}
                           >
-                            Edit
+                            {canEditTasks ? "Edit" : "Change Reporter"}
                           </button>
                         )}
 
@@ -198,28 +196,19 @@ return (
                           <button
                             type="button"
                             className="button button--danger"
-                            onClick={() =>
-                              onDeleteTask(task)
-                            }
-                            aria-label={
-                              `Delete ${task.title}`
-                            }
+                            onClick={() => onDeleteTask(task)}
+                            aria-label={`Delete ${task.title}`}
                             disabled={isDeleting}
                           >
-                            {isDeleting
-                              ? "Deleting..."
-                              : "Delete"}
+                            {isDeleting ? "Deleting..." : "Delete"}
                           </button>
                         )}
                       </div>
                     )}
 
-                    {!canEditTasks &&
-                      !canDeleteTasks && (
-                        <span className="task-list__read-only">
-                          Read only
-                        </span>
-                      )}
+                    {!canOpenTaskForm && !canDeleteTasks && (
+                      <span className="task-list__read-only">Read only</span>
+                    )}
                   </td>
                 </tr>
               );
