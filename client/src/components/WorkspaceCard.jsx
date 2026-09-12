@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { WORKSPACE_PERMISSIONS } from "../constants/access";
+import Icon from "./Icon";
 
 function WorkspaceCard({ workspace, onEdit, onDelete, isDeleting = false }) {
   const canEdit = workspace.permissions.includes(
@@ -33,9 +34,9 @@ function WorkspaceCard({ workspace, onEdit, onDelete, isDeleting = false }) {
         <div className="entity-card__content">
           <div className="entity-card__heading">
             <div>
-              <span className="entity-card__type">Workspace</span>
 
-              <h2>{workspace.name}</h2>
+
+              <h2><Link to={`/workspaces/${workspace.id}/projects`}>{workspace.name}</Link></h2>
             </div>
 
             <span className="entity-badge">{workspace.currentUserRole}</span>
@@ -64,22 +65,36 @@ function WorkspaceCard({ workspace, onEdit, onDelete, isDeleting = false }) {
           {canEdit && (
             <button
               type="button"
-              className="button button--secondary"
+              className={
+                "button button--secondary workspace-action-button"
+              }
               onClick={() => onEdit(workspace)}
+              aria-label={`Edit ${workspace.name}`}
+              title={`Edit ${workspace.name}`}
               disabled={isDeleting}
             >
-              Edit
+              <Icon name="pencil" />
             </button>
           )}
 
           {canDelete && (
             <button
               type="button"
-              className="button button--danger"
+              className="button button--danger workspace-action-button"
               onClick={() => onDelete(workspace)}
+              aria-label={
+                isDeleting
+                  ? `Deleting ${workspace.name}`
+                  : `Delete ${workspace.name}`
+              }
+              title={
+                isDeleting
+                  ? `Deleting ${workspace.name}`
+                  : `Delete ${workspace.name}`
+              }
               disabled={isDeleting}
             >
-              {isDeleting ? "Deleting..." : "Delete"}
+              <Icon name="trash" />
             </button>
           )}
 

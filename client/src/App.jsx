@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from "react-router";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ThemeToggle from "./components/ThemeToggle";
 import { getToken } from "./services/api";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -21,9 +22,16 @@ function App() {
       location.pathname.startsWith("/invitations"));
 
   return (
-    <>
+    <div className={shouldShowNavbar ? "app-shell" : "app-public"}>
+      <a className="skip-link" href="#main-content">Skip to content</a>
       {shouldShowNavbar && <Navbar />}
+      {!shouldShowNavbar && (
+        <div className="public-theme-control">
+          <ThemeToggle compact />
+        </div>
+      )}
 
+      <div className="app-content" id="main-content" tabIndex={-1}>
       <Routes>
         <Route
           path="/"
@@ -68,7 +76,8 @@ function App() {
           }
         />
       </Routes>
-    </>
+      </div>
+    </div>
   );
 }
 

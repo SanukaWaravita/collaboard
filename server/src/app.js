@@ -9,33 +9,12 @@ import invitationRoutes from "./routes/invitationRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
-
-const DEFAULT_ALLOWED_ORIGINS = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:8080",
-  "http://127.0.0.1:8080",
-];
-
-function normalizeOrigin(value) {
-  return value
-    .trim()
-    .replace(/\/+$/, "");
-}
-
-function getAllowedOrigins() {
-  const configuredOrigins =
-    process.env.CORS_ALLOWED_ORIGINS
-      ?.split(",")
-      .map(normalizeOrigin)
-      .filter(Boolean) ?? [];
-
-  return new Set(
-    configuredOrigins.length > 0
-      ? configuredOrigins
-      : DEFAULT_ALLOWED_ORIGINS,
-  );
-}
+import swaggerUi from "swagger-ui-express";
+import openApiDocument from "./docs/openapi.js";
+import {
+  getAllowedOrigins,
+  isAllowedOrigin,
+} from "./config/cors.js";
 
 const allowedOrigins = getAllowedOrigins();
 
@@ -44,30 +23,60 @@ const app = express();
 app.set("trust proxy", 1);
 
 app.use(
-  cors({
-    origin(origin, callback) {
-      if (
-        !origin ||
-        allowedOrigins.has(
-          normalizeOrigin(origin),
-        )
-      ) {
-        callback(null, true);
-        return;
-      }
+  cors((request, callback) => {
+    const requestOrigin = request.get("Origin");
+    const serverOrigin = `${request.protocol}://${request.get("host")}`;
 
-      const error = new Error(
-        "Origin is not allowed by CORS",
-      );
+    // Swagger runs on this API's own origin. Render terminates HTTPS at
+    // its proxy; trust proxy above lets request.protocol reflect HTTPS.
+    if (requestOrigin === serverOrigin) {
+      callback(null, { origin: false });
+      return;
+    }
 
-      error.status = 403;
+    callback(null, {
+      origin(origin, callback) {
+        if (isAllowedOrigin(origin, allowedOrigins)) {
+          callback(null, true);
+          return;
+        }
 
-      callback(error);
-    },
+        const error = new Error(
+          "Origin is not allowed by CORS",
+        );
+
+        error.status = 403;
+
+        callback(error);
+      },
+    });
   }),
 );
 
 app.use(express.json());
+
+app.get(
+  "/api/openapi.json",
+  (_request, response) => {
+    response.json(openApiDocument);
+  },
+);
+
+app.use(
+  "/api/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(openApiDocument, {
+    customSiteTitle:
+      "CollaBoard API Documentation",
+    explorer: true,
+    swaggerOptions: {
+      docExpansion: "list",
+      filter: true,
+      persistAuthorization: true,
+      displayRequestDuration: true,
+    },
+  }),
+);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/health", healthRoutes);
