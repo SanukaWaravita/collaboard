@@ -32,9 +32,9 @@ The real-time recovery check temporarily stopped only the API container, kept th
 
 | Component | URL | Result |
 | --- | --- | --- |
-| Firebase client | <https://collaboard-staging-2026.web.app/> | Passed manually |
-| Firebase client alias | <https://collaboard-staging-2026.firebaseapp.com/> | Passed manually |
-| Render API health | <https://collaboard-api-staging.onrender.com/api/health> | Passed manually |
+| Firebase client | <https://collaboard-team-2026.web.app/> | Passed manually |
+| Firebase client alias | <https://collaboard-team-2026.firebaseapp.com/> | Passed manually |
+| Render API health | <https://collaboard-team-api.onrender.com/api/health> | Passed manually |
 
 Public verification covered authentication, persisted data after refresh, the `Live` status, and Task synchronization between two active browser sessions. The browser console was checked for blocking CORS, WebSocket, and authentication errors.
 
