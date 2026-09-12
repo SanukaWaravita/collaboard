@@ -1,34 +1,164 @@
-import { useState } from "react";
+import Modal from "./Modal";
+import { useEffect, useState } from "react";
 import { getAssigneeInitial } from "../utils/taskAssignee";
+import {
+  clearTaskDraft,
+  readTaskDraft,
+  writeTaskDraft,
+} from "../utils/taskDraft";
 
 function TaskForm({
   initialTask = null,
   initialStatusId = null,
   workflowStatuses = [],
   assignees = [],
+  reporters = [],
+  currentUser = null,
+  canEditTaskFields = true,
+  canAssignReporter = false,
   onSubmit,
   onCancel,
   isSubmitting = false,
   error = "",
+  draftStorageKey = null,
 }) {
-  const [title, setTitle] = useState(initialTask?.title ?? "");
+  const isEditing = Boolean(initialTask);
+  const defaultStatus =
+    initialTask?.status ?? initialStatusId ?? workflowStatuses[0]?.id ?? "";
+  const defaultReporterId =
+    initialTask?.reporterId ?? currentUser?.id ?? "";
+
+  const [recoveredDraft] = useState(() => {
+    if (isEditing || !draftStorageKey) {
+      return null;
+    }
+
+    return readTaskDraft(draftStorageKey);
+  });
+
+  const validStatusIds = new Set(
+    workflowStatuses.map((workflowStatus) => workflowStatus.id),
+  );
+  const validAssigneeIds = new Set(
+    assignees.map((assignee) => assignee.userId),
+  );
+  const validReporterIds = new Set(
+    reporters.map((reporter) => reporter.userId),
+  );
+
+  const recoveredStatus = validStatusIds.has(recoveredDraft?.status)
+    ? recoveredDraft.status
+    : defaultStatus;
+  const recoveredReporterId =
+    canAssignReporter && validReporterIds.has(recoveredDraft?.reporterId)
+      ? recoveredDraft.reporterId
+      : defaultReporterId;
+  const recoveredAssigneeIds = Array.isArray(recoveredDraft?.assigneeIds)
+    ? recoveredDraft.assigneeIds.filter((userId) =>
+        validAssigneeIds.has(userId),
+      )
+    : [];
+  const recoveredDueDate =
+    typeof recoveredDraft?.dueDate === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(recoveredDraft.dueDate)
+      ? recoveredDraft.dueDate
+      : initialTask?.dueDate ?? "";
+
+  const [title, setTitle] = useState(
+    typeof recoveredDraft?.title === "string"
+      ? recoveredDraft.title
+      : initialTask?.title ?? "",
+  );
 
   const [description, setDescription] = useState(
-    initialTask?.description ?? "",
+    typeof recoveredDraft?.description === "string"
+      ? recoveredDraft.description
+      : initialTask?.description ?? "",
   );
 
-  const [status, setStatus] = useState(
-    initialTask?.status ?? initialStatusId ?? workflowStatuses[0]?.id ?? "",
-  );
+  const [status, setStatus] = useState(recoveredStatus);
 
-  const [dueDate, setDueDate] = useState(initialTask?.dueDate ?? "");
+  const [dueDate, setDueDate] = useState(recoveredDueDate);
 
   const [assigneeIds, setAssigneeIds] = useState(
-    initialTask?.assigneeIds ?? [],
+    recoveredDraft ? recoveredAssigneeIds : initialTask?.assigneeIds ?? [],
   );
 
-  const isEditing = Boolean(initialTask);
+  const [reporterId, setReporterId] = useState(recoveredReporterId);
+
+  const [isDraftRecovered, setIsDraftRecovered] = useState(
+    Boolean(recoveredDraft),
+  );
+
   const hasWorkflowStatuses = workflowStatuses.length > 0;
+
+  const hasReporterChanged =
+    isEditing && reporterId !== initialTask?.reporterId;
+
+  const selectedReporter =
+    reporters.find((reporter) => reporter.userId === reporterId) ??
+    (reporterId === initialTask?.reporterId ? initialTask?.reporter : null) ??
+    (reporterId === currentUser?.id ? currentUser : null);
+
+  const currentReporterIsProjectMember = reporters.some(
+    (reporter) => reporter.userId === initialTask?.reporterId,
+  );
+
+  const isSubmitDisabled =
+    isSubmitting ||
+    !reporterId ||
+    (canEditTaskFields ? !hasWorkflowStatuses : !hasReporterChanged);
+
+  useEffect(() => {
+    if (isEditing || !draftStorageKey) {
+      return;
+    }
+
+    const hasUnfinishedWork = Boolean(
+      title.trim() ||
+        description.trim() ||
+        dueDate ||
+        assigneeIds.length > 0 ||
+        status !== defaultStatus ||
+        reporterId !== defaultReporterId,
+    );
+
+    if (!hasUnfinishedWork) {
+      clearTaskDraft(draftStorageKey);
+      return;
+    }
+
+    writeTaskDraft(draftStorageKey, {
+      title,
+      description,
+      status,
+      dueDate,
+      assigneeIds,
+      reporterId,
+    });
+  }, [
+    assigneeIds,
+    defaultReporterId,
+    defaultStatus,
+    description,
+    draftStorageKey,
+    dueDate,
+    isEditing,
+    reporterId,
+    status,
+    title,
+  ]);
+
+  function discardDraft() {
+    clearTaskDraft(draftStorageKey);
+    setTitle("");
+    setDescription("");
+    setStatus(defaultStatus);
+    setDueDate("");
+    setAssigneeIds([]);
+    setReporterId(defaultReporterId);
+    setIsDraftRecovered(false);
+  }
 
   function toggleAssignee(userId) {
     setAssigneeIds((currentAssigneeIds) =>
@@ -42,21 +172,39 @@ function TaskForm({
 
     const trimmedTitle = title.trim();
 
-    if (!trimmedTitle || !status || isSubmitting) {
+    if (
+      isSubmitting ||
+      !reporterId ||
+      (canEditTaskFields && (!trimmedTitle || !status))
+    ) {
       return;
     }
 
-    onSubmit({
-      title: trimmedTitle,
-      description: description.trim(),
-      status,
-      dueDate: dueDate || null,
-      assigneeIds,
-    });
+    if (isEditing && !canEditTaskFields && !hasReporterChanged) {
+      return;
+    }
+
+    const taskData = {};
+
+    if (canEditTaskFields) {
+      Object.assign(taskData, {
+        title: trimmedTitle,
+        description: description.trim(),
+        status,
+        dueDate: dueDate || null,
+        assigneeIds,
+      });
+    }
+
+    if (!isEditing || (canAssignReporter && hasReporterChanged)) {
+      taskData.reporterId = reporterId;
+    }
+
+    onSubmit(taskData);
   }
 
   return (
-    <div className="modal-backdrop">
+    <Modal onClose={onCancel} busy={isSubmitting}>
       <form
         className="task-form"
         onSubmit={handleSubmit}
@@ -86,6 +234,24 @@ function TaskForm({
           </button>
         </header>
 
+        {!isEditing && isDraftRecovered && (
+          <div className="task-form__draft-notice" role="status">
+            <div>
+              <strong>Unsaved draft recovered</strong>
+              <small>Your task details were restored from this browser.</small>
+            </div>
+
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={discardDraft}
+              disabled={isSubmitting}
+            >
+              Discard draft
+            </button>
+          </div>
+        )}
+
         <div className="task-form__field">
           <label htmlFor="task-title">Title</label>
 
@@ -96,8 +262,7 @@ function TaskForm({
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Enter a task title"
             required
-            autoFocus
-            disabled={isSubmitting}
+            disabled={isSubmitting || !canEditTaskFields}
           />
         </div>
 
@@ -109,9 +274,32 @@ function TaskForm({
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Describe the task"
-            rows="4"
-            disabled={isSubmitting}
+            rows="3"
+            disabled={isSubmitting || !canEditTaskFields}
           />
+        </div>
+        <div className="task-form__field">
+          <label htmlFor="task-status">Status</label>
+
+          <select
+            id="task-status"
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            disabled={
+              isSubmitting || !canEditTaskFields || !hasWorkflowStatuses
+            }
+            required
+          >
+            {!hasWorkflowStatuses && (
+              <option value="">No workflow statuses available</option>
+            )}
+
+            {workflowStatuses.map((workflowStatus) => (
+              <option key={workflowStatus.id} value={workflowStatus.id}>
+                {workflowStatus.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="task-form__field">
           <label htmlFor="task-due-date">Due date</label>
@@ -122,14 +310,14 @@ function TaskForm({
               type="date"
               value={dueDate}
               onChange={(event) => setDueDate(event.target.value)}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !canEditTaskFields}
             />
 
             <button
               type="button"
               className={"button button--secondary " + "task-form__clear-date"}
               onClick={() => setDueDate("")}
-              disabled={!dueDate || isSubmitting}
+              disabled={!dueDate || isSubmitting || !canEditTaskFields}
             >
               Clear
             </button>
@@ -137,10 +325,104 @@ function TaskForm({
 
           <small>Optional. Leave this empty if the Task has no deadline.</small>
         </div>
+        <div className="task-form__field">
+          <label htmlFor="task-reporter">Reporter</label>
 
+          {canAssignReporter ? (
+            <div className="task-form__reporter-control">
+              <select
+                id="task-reporter"
+                value={reporterId}
+                onChange={(event) => setReporterId(event.target.value)}
+                disabled={isSubmitting || reporters.length === 0}
+                required
+              >
+                {reporters.length === 0 && (
+                  <option value="">No Project members available</option>
+                )}
+
+                {isEditing &&
+                  initialTask?.reporterId &&
+                  !currentReporterIsProjectMember && (
+                    <option value={initialTask.reporterId} disabled>
+                      {initialTask.reporter?.name ?? "Former Project member"}
+                      {" — no longer a Project member"}
+                    </option>
+                  )}
+
+                {reporters.map((reporter) => (
+                  <option key={reporter.userId} value={reporter.userId}>
+                    {reporter.name}
+                    {reporter.projectRole ? ` — ${reporter.projectRole}` : ""}
+                  </option>
+                ))}
+              </select>
+
+              {selectedReporter && (
+                <div
+                  className={"task-reporter " + "task-reporter--form"}
+                  title={selectedReporter.email ?? selectedReporter.name}
+                >
+                  <span className="task-reporter__avatar" aria-hidden="true">
+                    {getAssigneeInitial(selectedReporter.name)}
+                  </span>
+
+                  <span className="task-reporter__identity">
+                    <strong className="task-reporter__name">
+                      {selectedReporter.name}
+                    </strong>
+
+                    {selectedReporter.email && (
+                      <small className="task-reporter__email">
+                        {selectedReporter.email}
+                      </small>
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {selectedReporter ? (
+                <div
+                  className={"task-reporter " + "task-reporter--form"}
+                  title={selectedReporter.email ?? selectedReporter.name}
+                >
+                  <span className="task-reporter__avatar" aria-hidden="true">
+                    {getAssigneeInitial(selectedReporter.name)}
+                  </span>
+
+                  <span className="task-reporter__identity">
+                    <strong className="task-reporter__name">
+                      {selectedReporter.name}
+                    </strong>
+
+                    {selectedReporter.email && (
+                      <small className="task-reporter__email">
+                        {selectedReporter.email}
+                      </small>
+                    )}
+                  </span>
+                </div>
+              ) : (
+                <p className="task-reporter__unavailable">
+                  Reporter information is unavailable.
+                </p>
+              )}
+            </>
+          )}
+
+          <small>
+            {!isEditing
+              ? "Select the Task Reporter. You will remain recorded as the original creator."
+              : canAssignReporter
+                ? "Changing the Reporter does not change the original Task creator or grant additional permissions."
+                : "Only the original Task creator, Project Owner, Workspace Owner, or Workspace Admin can reassign the Reporter."}
+          </small>
+        </div>
         <fieldset
           className={"task-form__field " + "task-form__assignees"}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !canEditTaskFields}
         >
           <legend>Assignees</legend>
 
@@ -208,27 +490,7 @@ function TaskForm({
           </div>
         </fieldset>
 
-        <div className="task-form__field">
-          <label htmlFor="task-status">Status</label>
 
-          <select
-            id="task-status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-            disabled={isSubmitting || !hasWorkflowStatuses}
-            required
-          >
-            {!hasWorkflowStatuses && (
-              <option value="">No workflow statuses available</option>
-            )}
-
-            {workflowStatuses.map((workflowStatus) => (
-              <option key={workflowStatus.id} value={workflowStatus.id}>
-                {workflowStatus.name}
-              </option>
-            ))}
-          </select>
-        </div>
 
         {error && (
           <p className="auth-form__error" role="alert">
@@ -237,6 +499,12 @@ function TaskForm({
         )}
 
         <div className="task-form__actions">
+          {!isEditing && draftStorageKey && (
+            <small className="task-form__autosave-status">
+              Draft saved automatically on this device
+            </small>
+          )}
+
           <button
             type="button"
             className="button button--secondary"
@@ -249,17 +517,19 @@ function TaskForm({
           <button
             type="submit"
             className="button button--primary"
-            disabled={isSubmitting || !hasWorkflowStatuses}
+            disabled={isSubmitDisabled}
           >
             {isSubmitting
               ? "Saving..."
-              : isEditing
-                ? "Save Changes"
-                : "Create Task"}
+              : !canEditTaskFields
+                ? "Change Reporter"
+                : isEditing
+                  ? "Save Changes"
+                  : "Create Task"}
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }
 

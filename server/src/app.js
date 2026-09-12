@@ -4,16 +4,79 @@ import { authenticateUser } from "./middleware/authMiddleware.js";
 import { errorMiddleware } from "./middleware/errorMiddleware.js";
 import { notFoundMiddleware } from "./middleware/notFoundMiddleware.js";
 import authRoutes from "./routes/authRoutes.js";
-import projectRoutes from "./routes/projectRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
+import invitationRoutes from "./routes/invitationRoutes.js";
+import projectRoutes from "./routes/projectRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
-import invitationRoutes from "./routes/invitationRoutes.js";
+import swaggerUi from "swagger-ui-express";
+import openApiDocument from "./docs/openapi.js";
+import {
+  getAllowedOrigins,
+  isAllowedOrigin,
+} from "./config/cors.js";
+
+const allowedOrigins = getAllowedOrigins();
 
 const app = express();
 
-app.use(cors());
+app.set("trust proxy", 1);
+
+app.use(
+  cors((request, callback) => {
+    const requestOrigin = request.get("Origin");
+    const serverOrigin = `${request.protocol}://${request.get("host")}`;
+
+    // Swagger runs on this API's own origin. Render terminates HTTPS at
+    // its proxy; trust proxy above lets request.protocol reflect HTTPS.
+    if (requestOrigin === serverOrigin) {
+      callback(null, { origin: false });
+      return;
+    }
+
+    callback(null, {
+      origin(origin, callback) {
+        if (isAllowedOrigin(origin, allowedOrigins)) {
+          callback(null, true);
+          return;
+        }
+
+        const error = new Error(
+          "Origin is not allowed by CORS",
+        );
+
+        error.status = 403;
+
+        callback(error);
+      },
+    });
+  }),
+);
+
 app.use(express.json());
+
+app.get(
+  "/api/openapi.json",
+  (_request, response) => {
+    response.json(openApiDocument);
+  },
+);
+
+app.use(
+  "/api/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(openApiDocument, {
+    customSiteTitle:
+      "CollaBoard API Documentation",
+    explorer: true,
+    swaggerOptions: {
+      docExpansion: "list",
+      filter: true,
+      persistAuthorization: true,
+      displayRequestDuration: true,
+    },
+  }),
+);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/health", healthRoutes);
@@ -32,8 +95,11 @@ app.use(
   authenticateUser,
   invitationRoutes,
 );
-
-app.use("/api/tasks", authenticateUser, taskRoutes);
+app.use(
+  "/api/tasks",
+  authenticateUser,
+  taskRoutes,
+);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);

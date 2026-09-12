@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { store } from "../data/inMemoryStore.js";
+import mongoose from "mongoose";
 import {
   PROJECT_PERMISSIONS,
   PROJECT_ROLES,
@@ -7,9 +6,17 @@ import {
   WORKSPACE_ROLES,
 } from "../constants/access.js";
 import {
-  getProjectAccess,
-  hasProjectPermission,
-} from "../utils/projectAccess.js";
+  Project,
+  ProjectInvitation,
+  ProjectMember,
+  Task,
+  Workspace,
+  WorkspaceMember,
+} from "../models/index.js";
+import {
+  getDatabaseProjectAccess,
+  hasDatabaseProjectPermission,
+} from "../utils/databaseProjectAccess.js";
 import {
   generateProjectKey,
   normalizeProjectKey,
@@ -17,92 +24,140 @@ import {
   validateProjectKey,
 } from "../utils/projectKey.js";
 import {
+  presentDatabaseTask,
+} from "../utils/databaseTaskReporter.js";
+import {
   createDefaultWorkflowStatuses,
 } from "../utils/workflowStatuses.js";
 
-function presentProject(project, userId) {
-  const access = getProjectAccess(project, userId);
+async function presentProject(
+  project,
+  userId,
+  knownAccess = null,
+) {
+  const access =
+    knownAccess ??
+    (await getDatabaseProjectAccess(
+      project,
+      userId,
+    ));
+
+  const taskCount = await Task.countDocuments({
+    projectId: project.id,
+  });
 
   return {
-    ...project,
-
-    taskCount: store.tasks.filter(
-      (task) => task.projectId === project.id,
-    ).length,
-
+    ...project.toJSON(),
+    taskCount,
     currentUserRole: access?.role ?? null,
     isMember: access?.isMember ?? false,
     permissions: access?.permissions ?? [],
   };
 }
 
-function findWorkspaceMembershipForCreation(
+async function findWorkspaceMembershipForCreation(
   userId,
   requestedWorkspaceId,
 ) {
   if (requestedWorkspaceId) {
-    return store.workspaceMembers.find(
-      (membership) =>
-        membership.workspaceId ===
-          requestedWorkspaceId &&
-        membership.userId === userId,
-    );
+    const membership =
+      await WorkspaceMember.findOne({
+        workspaceId: requestedWorkspaceId,
+        userId,
+      });
+
+    return {
+      membership,
+      eligibleMembershipCount: null,
+    };
   }
 
   const eligibleMemberships =
-    store.workspaceMembers.filter(
-      (membership) =>
-        membership.userId === userId &&
-        membership.role !== WORKSPACE_ROLES.GUEST,
-    );
+    await WorkspaceMember.find({
+      userId,
+      role: {
+        $ne: WORKSPACE_ROLES.GUEST,
+      },
+    }).limit(2);
 
-  if (eligibleMemberships.length === 1) {
-    return eligibleMemberships[0];
-  }
-
-  return null;
+  return {
+    membership:
+      eligibleMemberships.length === 1
+        ? eligibleMemberships[0]
+        : null,
+    eligibleMembershipCount:
+      eligibleMemberships.length,
+  };
 }
 
-export function getProjects(request, response) {
+export async function getProjects(
+  request,
+  response,
+) {
   const requestedWorkspaceId =
     request.params.workspaceId ??
     request.query.workspaceId;
 
-  const projects = store.projects
-    .filter((project) => {
-      if (
-        requestedWorkspaceId &&
-        project.workspaceId !== requestedWorkspaceId
-      ) {
-        return false;
+  const filter = requestedWorkspaceId
+    ? {
+        workspaceId: requestedWorkspaceId,
       }
+    : {};
 
-      return Boolean(
-        getProjectAccess(project, request.user.id),
+  const projects = await Project.find(
+    filter,
+  ).sort({
+    createdAt: 1,
+  });
+
+  const accessibleProjects = [];
+
+  for (const project of projects) {
+    const access =
+      await getDatabaseProjectAccess(
+        project,
+        request.user.id,
       );
-    })
-    .map((project) =>
-      presentProject(project, request.user.id),
+
+    if (!access) {
+      continue;
+    }
+
+    accessibleProjects.push(
+      await presentProject(
+        project,
+        request.user.id,
+        access,
+      ),
     );
+  }
 
   return response.status(200).json({
-    projects,
+    projects: accessibleProjects,
   });
 }
 
-export function createProject(request, response) {
+export async function createProject(
+  request,
+  response,
+) {
   const {
     workspaceId: bodyWorkspaceId,
     name,
     description = "",
     projectKey,
-    visibility = PROJECT_VISIBILITY.PRIVATE,
+    visibility =
+      PROJECT_VISIBILITY.PRIVATE,
   } = request.body ?? {};
 
   const workspaceId =
-    request.params.workspaceId ?? bodyWorkspaceId;
+    request.params.workspaceId ??
+    bodyWorkspaceId;
 
-  if (typeof name !== "string" || !name.trim()) {
+  if (
+    typeof name !== "string" ||
+    !name.trim()
+  ) {
     return response.status(400).json({
       message: "Project name is required",
     });
@@ -110,35 +165,36 @@ export function createProject(request, response) {
 
   if (typeof description !== "string") {
     return response.status(400).json({
-      message: "Project description must be text",
+      message:
+        "Project description must be text",
     });
   }
 
   if (
-    !Object.values(PROJECT_VISIBILITY).includes(
-      visibility,
-    )
+    !Object.values(
+      PROJECT_VISIBILITY,
+    ).includes(visibility)
   ) {
     return response.status(400).json({
-      message: "Visibility must be open or private",
+      message:
+        "Visibility must be open or private",
     });
   }
 
-  const workspaceMembership =
-    findWorkspaceMembershipForCreation(
+  const {
+    membership: workspaceMembership,
+    eligibleMembershipCount,
+  } =
+    await findWorkspaceMembershipForCreation(
       request.user.id,
       workspaceId,
     );
 
   if (!workspaceMembership) {
-    const membershipCount =
-      store.workspaceMembers.filter(
-        (membership) =>
-          membership.userId === request.user.id &&
-          membership.role !== WORKSPACE_ROLES.GUEST,
-      ).length;
-
-    if (!workspaceId && membershipCount > 1) {
+    if (
+      !workspaceId &&
+      eligibleMembershipCount > 1
+    ) {
       return response.status(400).json({
         message:
           "workspaceId is required when you belong to multiple workspaces",
@@ -151,17 +207,20 @@ export function createProject(request, response) {
     });
   }
 
-  if (workspaceMembership.role === WORKSPACE_ROLES.GUEST) {
+  if (
+    workspaceMembership.role ===
+    WORKSPACE_ROLES.GUEST
+  ) {
     return response.status(403).json({
-      message: "Guest users cannot create projects",
+      message:
+        "Guest users cannot create projects",
     });
   }
 
-  const workspace = store.workspaces.find(
-    (currentWorkspace) =>
-      currentWorkspace.id ===
+  const workspace =
+    await Workspace.findById(
       workspaceMembership.workspaceId,
-  );
+    );
 
   if (!workspace) {
     return response.status(404).json({
@@ -171,7 +230,10 @@ export function createProject(request, response) {
 
   const normalizedKey = projectKey
     ? normalizeProjectKey(projectKey)
-    : generateProjectKey(workspace.id, name);
+    : await generateProjectKey(
+        workspace.id,
+        name,
+      );
 
   if (!validateProjectKey(normalizedKey)) {
     return response.status(400).json({
@@ -180,86 +242,130 @@ export function createProject(request, response) {
     });
   }
 
-  if (projectKeyExists(workspace.id, normalizedKey)) {
+  if (
+    await projectKeyExists(
+      workspace.id,
+      normalizedKey,
+    )
+  ) {
     return response.status(409).json({
       message:
         "That project key is already used in this workspace",
     });
   }
 
-  const timestamp = new Date().toISOString();
+  const session =
+    await mongoose.startSession();
 
-  const project = {
-    id: randomUUID(),
-    workspaceId: workspace.id,
-    projectKey: normalizedKey,
-    name: name.trim(),
-    description: description.trim(),
-    visibility,
-    ownerId: request.user.id,
-    workflowStatuses: createDefaultWorkflowStatuses(),
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
+  let project;
 
-  store.projects.push(project);
+  try {
+    await session.withTransaction(
+      async () => {
+        project = new Project({
+          workspaceId: workspace.id,
+          projectKey: normalizedKey,
+          name: name.trim(),
+          description:
+            description.trim(),
+          visibility,
+          ownerId: request.user.id,
+          workflowStatuses:
+            createDefaultWorkflowStatuses(),
+        });
 
-  store.projectMembers.push({
-    id: randomUUID(),
-    projectId: project.id,
-    userId: request.user.id,
-    role: PROJECT_ROLES.OWNER,
-    joinedAt: timestamp,
-  });
+        await project.save({
+          session,
+        });
 
-  const presentedProject = presentProject(
-    project,
-    request.user.id,
-  );
+        await ProjectMember.create(
+          [
+            {
+              projectId: project.id,
+              userId: request.user.id,
+              role: PROJECT_ROLES.OWNER,
+              joinedAt: new Date(),
+            },
+          ],
+          {
+            session,
+          },
+        );
+      },
+    );
+  } catch (error) {
+    if (error?.code === 11000) {
+      return response.status(409).json({
+        message:
+          "That project key is already used in this workspace",
+      });
+    }
+
+    throw error;
+  } finally {
+    await session.endSession();
+  }
 
   return response.status(201).json({
-    project: presentedProject,
+    project: await presentProject(
+      project,
+      request.user.id,
+    ),
   });
 }
 
-export function getProject(request, response) {
-  const project = store.projects.find(
-    (currentProject) =>
-      currentProject.id === request.params.projectId,
+export async function getProject(
+  request,
+  response,
+) {
+  const project = await Project.findById(
+    request.params.projectId,
   );
 
   if (
     !project ||
-    !hasProjectPermission(
+    !(await hasDatabaseProjectPermission(
       project,
       request.user.id,
       PROJECT_PERMISSIONS.READ_PROJECT,
-    )
+    ))
   ) {
     return response.status(404).json({
       message: "Project not found",
     });
   }
 
-  const tasks = store.tasks.filter(
-    (task) => task.projectId === project.id,
-  );
+  const taskDocuments = await Task.find({
+    projectId: project.id,
+  }).sort({
+    createdAt: 1,
+  });
 
-  const presentedProject = presentProject(
-    project,
-    request.user.id,
-  );
+  const tasks = await Promise.all(
+  taskDocuments.map((task) =>
+    presentDatabaseTask(
+      task,
+      request.user.id,
+      project,
+    ),
+  ),
+);
 
   return response.status(200).json({
-    project: presentedProject,
+    project: await presentProject(
+      project,
+      request.user.id,
+    ),
     tasks,
   });
 }
 
-export function updateProject(request, response) {
-  const project = store.projects.find(
-    (currentProject) =>
-      currentProject.id === request.params.projectId,
+export async function updateProject(
+  request,
+  response,
+) {
+  const project = await Project.findById(
+    request.params.projectId,
   );
 
   if (!project) {
@@ -269,11 +375,11 @@ export function updateProject(request, response) {
   }
 
   if (
-    !hasProjectPermission(
+    !(await hasDatabaseProjectPermission(
       project,
       request.user.id,
       PROJECT_PERMISSIONS.UPDATE_PROJECT,
-    )
+    ))
   ) {
     return response.status(403).json({
       message:
@@ -301,10 +407,12 @@ export function updateProject(request, response) {
 
   if (
     name !== undefined &&
-    (typeof name !== "string" || !name.trim())
+    (typeof name !== "string" ||
+      !name.trim())
   ) {
     return response.status(400).json({
-      message: "Project name cannot be empty",
+      message:
+        "Project name cannot be empty",
     });
   }
 
@@ -313,18 +421,20 @@ export function updateProject(request, response) {
     typeof description !== "string"
   ) {
     return response.status(400).json({
-      message: "Project description must be text",
+      message:
+        "Project description must be text",
     });
   }
 
   if (
     visibility !== undefined &&
-    !Object.values(PROJECT_VISIBILITY).includes(
-      visibility,
-    )
+    !Object.values(
+      PROJECT_VISIBILITY,
+    ).includes(visibility)
   ) {
     return response.status(400).json({
-      message: "Visibility must be open or private",
+      message:
+        "Visibility must be open or private",
     });
   }
 
@@ -333,45 +443,44 @@ export function updateProject(request, response) {
   }
 
   if (description !== undefined) {
-    project.description = description.trim();
+    project.description =
+      description.trim();
   }
 
   if (visibility !== undefined) {
     project.visibility = visibility;
   }
 
-  project.updatedAt = new Date().toISOString();
-
-  const presentedProject = presentProject(
-    project,
-    request.user.id,
-  );
+  await project.save();
 
   return response.status(200).json({
-    project: presentedProject,
+    project: await presentProject(
+      project,
+      request.user.id,
+    ),
   });
 }
 
-export function deleteProject(request, response) {
-  const projectIndex = store.projects.findIndex(
-    (project) =>
-      project.id === request.params.projectId,
+export async function deleteProject(
+  request,
+  response,
+) {
+  const project = await Project.findById(
+    request.params.projectId,
   );
 
-  if (projectIndex === -1) {
+  if (!project) {
     return response.status(404).json({
       message: "Project not found",
     });
   }
 
-  const project = store.projects[projectIndex];
-
   if (
-    !hasProjectPermission(
+    !(await hasDatabaseProjectPermission(
       project,
       request.user.id,
       PROJECT_PERMISSIONS.DELETE_PROJECT,
-    )
+    ))
   ) {
     return response.status(403).json({
       message:
@@ -379,23 +488,52 @@ export function deleteProject(request, response) {
     });
   }
 
-  store.projects.splice(projectIndex, 1);
+  const session =
+    await mongoose.startSession();
 
-  store.tasks = store.tasks.filter(
-    (task) => task.projectId !== project.id,
-  );
+  try {
+    await session.withTransaction(
+      async () => {
+        await Task.deleteMany(
+  {
+    projectId: project.id,
+  },
+  {
+    session,
+  },
+);
 
-  store.projectMembers =
-    store.projectMembers.filter(
-      (membership) =>
-        membership.projectId !== project.id,
+await ProjectMember.deleteMany(
+  {
+    projectId: project.id,
+  },
+  {
+    session,
+  },
+);
+
+await ProjectInvitation.deleteMany(
+  {
+    projectId: project.id,
+  },
+  {
+    session,
+  },
+);
+
+        await Project.deleteOne(
+          {
+            _id: project.id,
+          },
+          {
+            session,
+          },
+        );
+      },
     );
-
-  store.projectInvitations =
-    store.projectInvitations.filter(
-      (invitation) =>
-        invitation.projectId !== project.id,
-    );
+  } finally {
+    await session.endSession();
+  }
 
   return response.status(204).send();
 }

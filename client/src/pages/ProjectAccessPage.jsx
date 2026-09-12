@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
+import AccessPageHeader from "../components/AccessPageHeader";
 import InviteMemberForm from "../components/InviteMemberForm";
 import ProjectMemberList from "../components/ProjectMemberList";
 import { INVITATION_STATUS, PROJECT_PERMISSIONS } from "../constants/access";
@@ -263,7 +264,7 @@ function ProjectAccessPage() {
 
   if (isLoading) {
     return (
-      <main className="access-page">
+      <main className="board-page access-page">
         <p className="page-message" role="status">
           Loading project access...
         </p>
@@ -273,7 +274,7 @@ function ProjectAccessPage() {
 
   if (loadError || !project) {
     return (
-      <main className="access-page">
+      <main className="board-page access-page">
         <section className="page-error">
           <p role="alert">{loadError || "Project not found"}</p>
 
@@ -310,23 +311,33 @@ function ProjectAccessPage() {
   );
 
   return (
-    <main className="access-page">
-      <header className="boards-header">
-        <div>
-          <Link
-            to={`/workspaces/${workspaceId}/projects/${projectId}`}
-            className="project-header__back"
-          >
-            ← Back to project
-          </Link>
-
-          <p className="board-header__eyebrow">{project.projectKey}</p>
-
-          <h1>Project Access</h1>
-
-          <p>Manage access to {project.name}.</p>
-        </div>
-      </header>
+    <main className="board-page access-page">
+      <AccessPageHeader
+        title="Project Access"
+        countLabel={
+          `${members.length} ` +
+          `${members.length === 1 ? "Member" : "Members"}`
+        }
+        backTo={`/workspaces/${workspaceId}` + `/projects/${projectId}`}
+        backLabel={`Back to ${project.name}`}
+        metadata={[
+          {
+            label: project.projectKey,
+            className: "project-header__key",
+          },
+          {
+            label: project.name,
+          },
+          {
+            label: project.visibility,
+            className: "project-header__visibility",
+          },
+          {
+            label: project.currentUserRole ?? "Member",
+            className: "project-header__role",
+          },
+        ]}
+      />
 
       {actionError && (
         <p className="board-action-error" role="alert">

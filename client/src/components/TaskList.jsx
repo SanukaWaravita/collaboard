@@ -1,5 +1,8 @@
 import { getDueDateLabel, getDueDateState } from "../utils/taskDueDate";
-import { resolveTaskAssignees } from "../utils/taskAssignee";
+import {
+  getAssigneeInitial,
+  resolveTaskAssignees,
+} from "../utils/taskAssignee";
 
 function TaskList({
   tasks,
@@ -34,21 +37,24 @@ function TaskList({
       </header>
 
       <div className="task-list__table-wrapper">
-        <table className="task-list__table">
+        <table role="table" className="task-list__table">
           <thead>
-            <tr>
-              <th scope="col">Task</th>
-              <th scope="col">Description</th>
-              <th scope="col">Status</th>
-              <th scope="col">Assignee</th>
-              <th scope="col">Due date</th>
-              <th scope="col">Actions</th>
+            <tr role="row">
+              <th role="columnheader" scope="col">Task</th>
+              <th role="columnheader" scope="col">Description</th>
+              <th role="columnheader" scope="col">Status</th>
+              <th role="columnheader" scope="col">Assignee</th>
+              <th role="columnheader" scope="col">Reporter</th>
+              <th role="columnheader" scope="col">Due date</th>
+              <th role="columnheader" scope="col">Actions</th>
             </tr>
           </thead>
 
           <tbody>
             {tasks.map((task) => {
               const isDeleting = deletingTaskId === task.id;
+
+              const canOpenTaskForm = canEditTasks || task.canAssignReporter;
 
               const workflowStatus = statusesById.get(task.status);
 
@@ -66,20 +72,24 @@ function TaskList({
                 projectMembers,
               );
 
+              const reporterName = task.reporter?.name ?? "Unknown reporter";
+
+              const reporterEmail = task.reporter?.email ?? null;
+
               const dueDateLabel = getDueDateLabel(
                 task.dueDate,
                 workflowStatus?.isCompleted ?? false,
               );
 
               return (
-                <tr key={task.id}>
-                  <td className="task-list__title">{task.title}</td>
+                <tr role="row" key={task.id}>
+                  <td role="cell" className="task-list__title"><span className="mobile-cell-label" aria-hidden="true">Task</span>{task.title}</td>
 
-                  <td className="task-list__description">
+                  <td role="cell" className="task-list__description"><span className="mobile-cell-label" aria-hidden="true">Description</span>
                     {task.description || "No description"}
                   </td>
 
-                  <td>
+                  <td role="cell"><span className="mobile-cell-label" aria-hidden="true">Status</span>
                     <span
                       className="task-status"
                       style={{
@@ -90,7 +100,7 @@ function TaskList({
                     </span>
                   </td>
 
-                  <td className="task-list__assignee">
+                  <td role="cell" className="task-list__assignee"><span className="mobile-cell-label" aria-hidden="true">Assignee</span>
                     <div
                       className="task-assignee-list"
                       aria-label="Task Assignees"
@@ -136,7 +146,28 @@ function TaskList({
                     </div>
                   </td>
 
-                  <td className="task-list__due-date">
+                  <td role="cell" className="task-list__reporter"><span className="mobile-cell-label" aria-hidden="true">Reporter</span>
+                    <div
+                      className="task-reporter"
+                      title={reporterEmail ?? reporterName}
+                      aria-label={`Reporter: ${reporterName}`}
+                    >
+                      <span
+                        className="task-reporter__avatar"
+                        aria-hidden="true"
+                      >
+                        {getAssigneeInitial(reporterName)}
+                      </span>
+
+                      <span className="task-reporter__identity">
+                        <span className="task-reporter__name">
+                          {reporterName}
+                        </span>
+                      </span>
+                    </div>
+                  </td>
+
+                  <td role="cell" className="task-list__due-date"><span className="mobile-cell-label" aria-hidden="true">Due date</span>
                     <span
                       className={
                         `task-due-date ` + `task-due-date--${dueDateState}`
@@ -146,10 +177,10 @@ function TaskList({
                     </span>
                   </td>
 
-                  <td>
-                    {(canEditTasks || canDeleteTasks) && (
+                  <td role="cell"><span className="mobile-cell-label" aria-hidden="true">Actions</span>
+                    {(canOpenTaskForm || canDeleteTasks) && (
                       <div className="task-list__actions">
-                        {canEditTasks && (
+                        {canOpenTaskForm && (
                           <button
                             type="button"
                             className="button button--secondary"
@@ -157,7 +188,7 @@ function TaskList({
                             aria-label={`Edit ${task.title}`}
                             disabled={isDeleting}
                           >
-                            Edit
+                            {canEditTasks ? "Edit" : "Change Reporter"}
                           </button>
                         )}
 
@@ -175,7 +206,7 @@ function TaskList({
                       </div>
                     )}
 
-                    {!canEditTasks && !canDeleteTasks && (
+                    {!canOpenTaskForm && !canDeleteTasks && (
                       <span className="task-list__read-only">Read only</span>
                     )}
                   </td>

@@ -1,5 +1,8 @@
 import { getDueDateLabel, getDueDateState } from "../utils/taskDueDate";
-import { resolveTaskAssignees } from "../utils/taskAssignee";
+import {
+  getAssigneeInitial,
+  resolveTaskAssignees,
+} from "../utils/taskAssignee";
 
 function TaskCard({
   task,
@@ -10,6 +13,7 @@ function TaskCard({
   onDragStart,
   onDragEnd,
   canEdit = false,
+  editLabel = "Edit Task",
   canDelete = false,
   canDrag = false,
   isDeleting = false,
@@ -17,6 +21,10 @@ function TaskCard({
   isMoving = false,
 }) {
   const taskAssignees = resolveTaskAssignees(task.assigneeIds, projectMembers);
+
+  const reporterName = task.reporter?.name ?? "Unknown reporter";
+
+  const reporterEmail = task.reporter?.email ?? null;
 
   const statusName = workflowStatus?.name ?? "Unknown Status";
 
@@ -86,7 +94,7 @@ function TaskCard({
         )}
       </div>
 
-      <h3>{task.title}</h3>
+      <h3>{canEdit ? <button type="button" className="task-card__title-button" onClick={() => onEdit(task)} disabled={isBusy}>{task.title}</button> : task.title}</h3>
 
       {task.description && (
         <p className="task-card__description">{task.description}</p>
@@ -127,6 +135,21 @@ function TaskCard({
             ))
           )}
         </div>
+        <div
+          className={"task-reporter " + "task-reporter--card"}
+          title={reporterEmail ?? reporterName}
+          aria-label={`Reported by ${reporterName}`}
+        >
+          <span className="task-reporter__avatar" aria-hidden="true">
+            {getAssigneeInitial(reporterName)}
+          </span>
+
+          <span className="task-reporter__identity">
+            <small className="task-reporter__label">Reported by</small>
+
+            <span className="task-reporter__name">{reporterName}</span>
+          </span>
+        </div>
       </div>
 
       {(canEdit || canDelete) && (
@@ -138,8 +161,8 @@ function TaskCard({
                 className="task-card__icon-button"
                 onClick={() => onEdit(task)}
                 disabled={isBusy}
-                aria-label={`Edit ${task.title}`}
-                title="Edit Task"
+                aria-label={`${editLabel}: ${task.title}`}
+                title={editLabel}
               >
                 <svg
                   viewBox="0 0 24 24"
