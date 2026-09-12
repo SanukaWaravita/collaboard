@@ -7,6 +7,9 @@ const frontendOrigins = [
   "https://collaboard-team-2026.web.app",
 ];
 
+const renderOrigin =
+  "https://collaboard-team-api.onrender.com";
+
 test("Swagger HTML, initialization, and local assets load without authentication", async () => {
   for (const [path, contentType] of [
     ["/api/docs/", "text/html"],
@@ -32,7 +35,7 @@ test("OpenAPI resolves against either backend and retains bearer authentication"
   expect(document.servers[0].url).toBe("/api");
   for (const origin of [
     "http://localhost:5000",
-    "https://collaboard-team-api.onrender.com",
+    renderOrigin,
   ]) {
     const api = new URL(document.servers[0].url, origin + "/api/openapi.json");
     expect(api.href + "/health").toBe(origin + "/api/health");
@@ -65,12 +68,15 @@ test("local same-origin JSON POST reaches validation instead of CORS rejection",
 test("Render HTTPS proxy same-origin JSON POST reaches validation", async () => {
   const response = await request(app)
     .post("/api/auth/register")
-    .set("Host", "https://collaboard-team-api.onrender.com")
-    .set("Origin", "https://collaboard-team-api.onrender.com")
+    .set("Host", new URL(renderOrigin).host)
+    .set("Origin", renderOrigin)
     .set("X-Forwarded-Proto", "https")
     .send({})
     .expect(400);
-  expect(response.body.message).toBe("Name is required");
+
+  expect(response.body.message).toBe(
+    "Name is required",
+  );
 });
 
 test.each(frontendOrigins)("Firebase preflight accepts %s", async (origin) => {
