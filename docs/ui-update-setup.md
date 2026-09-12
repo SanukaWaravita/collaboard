@@ -6,7 +6,7 @@ The updated source archive contains the full project source, the audit in `docs/
 
 Extract the downloaded archive to a separate temporary folder. **Do not replace your working repository with the extracted folder.** Copy or refer to `docs/CollaBoard-UI.patch` from that extraction.
 
-Start inside your current `collaboard_2` repository. First inspect your working tree and commit any work you want to retain:
+Start inside your current `collaboard` repository. First inspect your working tree and commit any work you want to retain:
 
 ```bash
 git status --short

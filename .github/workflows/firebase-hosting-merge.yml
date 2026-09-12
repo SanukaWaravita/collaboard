@@ -12,11 +12,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm --prefix client ci &&
-          VITE_API_URL=https://collaboard-api-staging.onrender.com/api npm
+          VITE_API_URL=https://collaboard-team-api.onrender.com/api npm
           --prefix client run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_COLLABOARD_STAGING_2026 }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_COLLABOARD_TEAM_2026 }}
           channelId: live
-          projectId: collaboard-staging-2026
+          projectId: collaboard-team-2026

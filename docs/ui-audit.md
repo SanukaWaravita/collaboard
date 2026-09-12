@@ -1,9 +1,9 @@
 ---
 title: CollaBoard UI and UX audit
 date: 2026-09-08
-project: collaboard_2
+project: collaboard
 status: Implemented; visual review pending
-source: collaboard_2-8_9_2026-22.17.zip
+source: collaboard-8_9_2026-22.17.zip
 ---
 
 # CollaBoard — UI and UX audit
